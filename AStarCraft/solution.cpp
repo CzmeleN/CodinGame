@@ -7,8 +7,10 @@
 #include <random>
 #include <algorithm>
 
-static const int HEIGHT = 10;
-static const int WIDTH = 19;
+constexpr int HEIGHT = 10;
+constexpr int WIDTH = 19;
+constexpr int MAX = 190;
+constexpr int DIRS = 4;
 enum cell { VOID, PLATFORM, UP, RIGHT, DOWN, LEFT }; 
 
 struct Uni {
@@ -42,17 +44,13 @@ private:
         return dist(generator);
     }
 
-    bool in_bounds(short x, short y) {
-        return x >= 0 && x < HEIGHT && y >= 0 && y < WIDTH;
-    }
-
     bool pointless(short x, short y) {
-        bool voids[4];
+        bool voids[DIRS];
 
-        voids[0] = in_bounds(x - 1, y) ? board[x - 1][y] == VOID : true;
-        voids[1] = in_bounds(x, y + 1) ? board[x][y + 1] == VOID : true;
-        voids[2] = in_bounds(x + 1, y) ? board[x + 1][y] == VOID : true;
-        voids[3] = in_bounds(x, y - 1) ? board[x][y - 1] == VOID : true;
+        voids[0] = board[x == 0 ? HEIGHT - 1 : x - 1][y] == VOID;
+        voids[1] = board[x][(y + 1) % WIDTH] == VOID;
+        voids[2] = board[(x + 1) % HEIGHT][y] == VOID;
+        voids[3] = board[x][y == 0 ? WIDTH - 1 : y - 1] == VOID;
 
         if ((voids[0] && voids[2] && !voids[1] && !voids[3]) || (voids[1] && voids[3] && !voids[0] && !voids[2])) {
             return true;
@@ -63,13 +61,13 @@ private:
 
     void generate_random() {
         std::vector<std::pair<short, short>> possibs;
+        // std::pair<short, short> possibs[MAX]
         constexpr short dx[] = {-1, 0, 1, 0}, dy[] = {0, 1, 0, -1};
         int count;
         short x, y, nx, ny;
 
         for (short i = 0; i < HEIGHT; ++i) {
             for (short j = 0; j < WIDTH; ++j) {
-                // if (i == 4 && j == 14) std::cerr << "im here" << std::endl;
                 if (board[i][j] == PLATFORM && !pointless(i, j)) {
                     possibs.push_back({i, j});
                 }
@@ -80,22 +78,23 @@ private:
         count = random(1, possibs.size());
         
         for (int i = 0; i < count; ++i) {
-            std::vector<short> dirs;
+            short dirs[4];
+            int it = 0;
 
             x = possibs[i].first;
             y = possibs[i].second;
             
             for (short i = 0; i < 4; ++i) {
 
-                nx = x + dx[i];
-                ny = y + dy[i];
+                nx = x == 0 && dx[i] == -1 ? HEIGHT - 1 : (x + dx[i]) % HEIGHT;
+                ny = y == 0 && dy[i] == -1 ? WIDTH - 1 : (y + dy[i]) % WIDTH;
 
-                if (in_bounds(nx, ny) && board[nx][ny] != VOID) {
-                    dirs.push_back(i + 2); 
+                if (board[nx][ny] != VOID) {
+                    dirs[it++] = i + 2;
                 }
             }
 
-            board[x][y] = dirs[random(0, dirs.size() - 1)];
+            board[x][y] = dirs[random(0, it)];
         }
     }
 
@@ -103,7 +102,8 @@ private:
         int res = 0;
 
         for (const auto& bot : bots) {
-            std::vector<std::vector<bool[4]>> visited(HEIGHT, std::vector<bool[4]>(WIDTH, {false, false, false, false}));
+            // std::vector<std::vector<bool[4]>> visited(HEIGHT, std::vector<bool[4]>(WIDTH, {false, false, false, false}));
+            bool visited[HEIGHT][WIDTH][DIRS] = {};
             short x = bot.x, y = bot.y, dir = board[y][x] >= UP ? board[y][x] : bot.dir;
 
             visited[y][x][dir - 2] = true;
@@ -113,37 +113,32 @@ private:
 
                 switch(dir) {
                     case UP:
-                        y--;
+                        y = y == 0 ? HEIGHT - 1 : y - 1;
                         break;
                     case RIGHT:
-                        x++;
+                        ++x %= WIDTH;
                         break;
                     case DOWN:
-                        y++;
+                        ++y %= HEIGHT;
                         break;
                     case LEFT:
-                        x--;
+                        x = x == 0 ? HEIGHT - 1 : x - 1;
                         break;
                 }
 
-                if (in_bounds(y, x)) {
-                    if (board[y][x] == VOID) {
-                        break;
-                    }
-
-                    if (board[y][x] >= UP) {
-                        dir = board[y][x];
-                    }
-
-                    if (visited[y][x][dir - 2]) {
-                        break;
-                    }
-
-                    visited[y][x][dir - 2] = true;
-                }
-                else {
+                if (board[y][x] == VOID) {
                     break;
                 }
+
+                if (board[y][x] >= UP) {
+                    dir = board[y][x];
+                }
+
+                if (visited[y][x][dir - 2]) {
+                    break;
+                }
+
+                visited[y][x][dir - 2] = true;
             }
         }
 
@@ -152,7 +147,6 @@ private:
 
     std::vector<Uni> best_random() {
         State best;
-        std::vector<Uni> curr_arrows;
         int curr, max = 0, tries = 1000;
         double time_left = 100.0;
 
@@ -176,7 +170,7 @@ private:
         std::cerr << max;
         return best.get_new_arrows(this);
     }
-    
+ 
 public:
     State(const State *old_state = nullptr) {
         if (old_state) {
@@ -280,6 +274,9 @@ public:
                     break;
                 case LEFT:
                     std::cout << 'L';
+                    break;
+                default:
+                    std::cout << "fail";
                     break;
             }
 
