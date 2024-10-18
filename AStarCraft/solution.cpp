@@ -1,3 +1,5 @@
+#pragma GCC optimize("Ofast,inline,tracer")
+#pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
 #include <iostream>
 #include <chrono>
 #include <string>
@@ -61,7 +63,7 @@ private:
 
     void generate_random() {
         std::vector<std::pair<short, short>> possibs;
-        static const short dx[] = {-1, 0, 1, 0}, dy[] = {0, 1, 0, -1};
+        constexpr short dx[] = {-1, 0, 1, 0}, dy[] = {0, 1, 0, -1};
         int count;
         short x, y, nx, ny;
 
@@ -155,6 +157,7 @@ private:
         double time_left = 100.0;
 
         while (time_left > 3) {
+            // zmienic na co np64
             auto start = std::chrono::high_resolution_clock::now();
             State new_state(this);
             new_state.generate_random();
