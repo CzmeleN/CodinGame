@@ -11,6 +11,7 @@ constexpr int HEIGHT = 10;
 constexpr int WIDTH = 19;
 constexpr int MAX = 190;
 constexpr int DIRS = 4;
+constexpr double LIMIT = 995.0;
 enum cell { VOID, PLATFORM, UP, RIGHT, DOWN, LEFT }; 
 
 struct Uni {
@@ -41,7 +42,22 @@ private:
 
     static int random(int min, int max) {
         std::uniform_int_distribution<> dist(min, max);
+
         return dist(generator);
+    }
+
+    uint32_t xorshift_rand() {
+        static uint32_t state = std::chrono::steady_clock::now().time_since_epoch().count() & 0xFFFFFFFF;
+
+        if (state == 0) {
+            state = 1;
+        }
+
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+
+        return state;
     }
 
     bool pointless(short x, short y) {
@@ -52,11 +68,7 @@ private:
         voids[2] = board[(x + 1) % HEIGHT][y] == VOID;
         voids[3] = board[x][y == 0 ? WIDTH - 1 : y - 1] == VOID;
 
-        if ((voids[0] && voids[2] && !voids[1] && !voids[3]) || (voids[1] && voids[3] && !voids[0] && !voids[2])) {
-            return true;
-        }
-
-        return false;
+        return (voids[0] && voids[2] && !voids[1] && !voids[3]) || (voids[1] && voids[3] && !voids[0] && !voids[2]);
     }
 
     void generate_random() {
@@ -98,11 +110,45 @@ private:
         }
     }
 
+    void make_change(State *orig) {
+        std::pair<short, short> possibs[MAX];
+        constexpr short dx[] = {-1, 0, 1, 0}, dy[] = {0, 1, 0, -1};
+        int x, y, nx, ny;
+        unsigned int it = 0, pick;
+        short dirs[5] = {PLATFORM};
+
+        for (int i = 0; i < HEIGHT; ++i) {
+            for (int j = 0; j < WIDTH; ++j) {
+                if (board[i][j] != VOID && orig->board[i][j] == PLATFORM && !pointless(i, j)) {
+                    possibs[it++] = {i, j};
+                }
+            }
+        }
+
+        pick = xorshift_rand() % it;
+        it = 1;
+        x = possibs[pick].first;
+        y = possibs[pick].second;
+        
+        for (short i = 0; i < 4; ++i) {
+
+            nx = x == 0 && dx[i] == -1 ? HEIGHT - 1 : (x + dx[i]) % HEIGHT;
+            ny = y == 0 && dy[i] == -1 ? WIDTH - 1 : (y + dy[i]) % WIDTH;
+
+            if (board[nx][ny] != VOID) {
+                //segfault here???
+                dirs[it++] = i + 2;
+            }
+        }
+
+        int new_it = xorshift_rand() % it;
+        board[x][y] = dirs[new_it];
+    }
+
     int simulate() {
         int res = 0;
 
         for (const auto& bot : bots) {
-            // std::vector<std::vector<bool[4]>> visited(HEIGHT, std::vector<bool[4]>(WIDTH, {false, false, false, false}));
             bool visited[HEIGHT][WIDTH][DIRS] = {};
             short x = bot.x, y = bot.y, dir = board[y][x] >= UP ? board[y][x] : bot.dir;
 
@@ -147,12 +193,12 @@ private:
 
     std::vector<Uni> best_random() {
         State best;
-        int curr, max = 0, tries = 1000;
-        double time_left = 100.0;
+        int curr, max = 0, count = 0;
+        double time_left = 1000.0;
+        auto start = std::chrono::high_resolution_clock::now();
 
-        while (time_left > 3) {
+        while (time_left > 10) {
             // zmienic na co np64
-            auto start = std::chrono::high_resolution_clock::now();
             State new_state(this);
             new_state.generate_random();
             curr = new_state.simulate();
@@ -162,12 +208,54 @@ private:
                 best = new_state;
             }
 
-            auto end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double, std::milli> time = end - start;
-            time_left -= time.count();
+            auto time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> elapsed = time - start;
+            time_left -= elapsed.count();
+            count++;
         }
 
-        std::cerr << max;
+        // std::cerr << "simulations: " << count << " max score: " << max << std::endl;
+        return best.get_new_arrows(this);
+    }
+
+    std::vector<Uni> best_sa() {
+        State curr = *this;
+        State best = curr;
+        int curr_score = curr.simulate();
+        int best_score = curr_score, delta, neigh_score; //count = 0;
+        double temp = 1000.0, elapsed;
+        constexpr double final_temp = 0.01, alpha = 0.99996;
+        auto start = std::chrono::high_resolution_clock::now();
+
+        do {
+            State neigh(curr);
+
+            neigh.make_change(this);
+            neigh_score = neigh.simulate();
+            delta = neigh_score - curr_score;
+
+            if (delta > 0 || std::exp(static_cast<double>(delta) / temp) > static_cast<double>(xorshift_rand()) / UINT32_MAX) {
+                curr = neigh;
+                curr_score = neigh_score;
+
+                if (curr_score > best_score) {
+                    best = curr;
+                    best_score = curr_score;
+                }
+            }
+
+            temp *= alpha;
+
+            auto time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> el = time - start;
+            elapsed = el.count();
+            //count++;
+        }
+        while (temp > final_temp && elapsed < LIMIT);
+        // std::cerr << elapsed << " < " << LIMIT << std::endl;
+        // std::cerr << temp << " > " << final_temp << std::endl;
+        // std::cerr << count << std::endl;
+
         return best.get_new_arrows(this);
     }
  
@@ -256,7 +344,7 @@ public:
     }
 
     void solve() {
-        std::vector<Uni> res = best_random();
+        std::vector<Uni> res = best_sa();
         int size = res.size() - 1;
 
         for (const auto& arrow : res) {
