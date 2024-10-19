@@ -1,6 +1,7 @@
 #pragma GCC optimize("Ofast,inline,tracer")
 #pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
 #include <iostream>
+#include <cstring>
 #include <chrono>
 #include <string>
 #include <vector>
@@ -11,7 +12,11 @@ constexpr int HEIGHT = 10;
 constexpr int WIDTH = 19;
 constexpr int MAX = 190;
 constexpr int DIRS = 4;
+constexpr int INTERVAL = 128;
 constexpr double LIMIT = 995.0;
+constexpr double INIT_TEMP = 50.0;
+constexpr double ALPHA = 0.99999;
+
 enum cell { VOID, PLATFORM, UP, RIGHT, DOWN, LEFT }; 
 
 struct Uni {
@@ -20,11 +25,14 @@ struct Uni {
     short dir;
 };
 
+static short og_board[HEIGHT][WIDTH];
+static Uni bots[HEIGHT];
+static int bot_count = 0;
+
 class State{
 private:
     static std::mt19937 generator;
-    std::vector<std::vector<short>> board;
-    std::vector<Uni> bots;
+    short board[HEIGHT][WIDTH];
 
     std::vector<Uni> get_new_arrows(State *orig) {
         std::vector<Uni> res;
@@ -62,13 +70,32 @@ private:
 
     bool pointless(short x, short y) {
         bool voids[DIRS];
+        short curr = og_board[x == 0 ? HEIGHT - 1 : x - 1][y];
+        
+        if (curr >= UP) return false;
+        voids[0] = curr == VOID;
 
-        voids[0] = board[x == 0 ? HEIGHT - 1 : x - 1][y] == VOID;
-        voids[1] = board[x][(y + 1) % WIDTH] == VOID;
-        voids[2] = board[(x + 1) % HEIGHT][y] == VOID;
-        voids[3] = board[x][y == 0 ? WIDTH - 1 : y - 1] == VOID;
+        curr = og_board[x][(y + 1) % WIDTH];
+        if (curr >= UP) return false;
+        voids[1] = curr == VOID;
 
-        return (voids[0] && voids[2] && !voids[1] && !voids[3]) || (voids[1] && voids[3] && !voids[0] && !voids[2]);
+        curr = og_board[(x + 1) % HEIGHT][y];
+        if (curr >= UP) return false;
+        voids[2] = curr == VOID; 
+
+        curr = og_board[x][y == 0 ? WIDTH - 1 : y - 1];
+        if (curr >= UP) return false;
+        voids[3] = curr == VOID;
+
+        if ((voids[0] && voids[2] && !voids[1] && !voids[3]) || (voids[1] && voids[3] && !voids[0] && !voids[2])) {
+            return true;
+        }
+
+        if (!voids[0] && !voids[1] && !voids[2] && !voids[3]) {
+            return og_board[(x + 1) % HEIGHT][(y + 1) % WIDTH] == PLATFORM;
+        }
+
+        return false;
     }
 
     void generate_random() {
@@ -90,7 +117,7 @@ private:
         count = random(1, possibs.size());
         
         for (int i = 0; i < count; ++i) {
-            short dirs[4];
+            short dirs[4], op;
             int it = 0;
 
             x = possibs[i].first;
@@ -101,7 +128,7 @@ private:
                 nx = x == 0 && dx[i] == -1 ? HEIGHT - 1 : (x + dx[i]) % HEIGHT;
                 ny = y == 0 && dy[i] == -1 ? WIDTH - 1 : (y + dy[i]) % WIDTH;
 
-                if (board[nx][ny] != VOID) {
+                if (board[nx][ny] != VOID && board[nx][ny] != (i + 2) % DIRS + 2) {
                     dirs[it++] = i + 2;
                 }
             }
@@ -110,16 +137,16 @@ private:
         }
     }
 
-    void make_change(State *orig) {
+    void make_change() {
         std::pair<short, short> possibs[MAX];
         constexpr short dx[] = {-1, 0, 1, 0}, dy[] = {0, 1, 0, -1};
         int x, y, nx, ny;
         unsigned int it = 0, pick;
-        short dirs[5] = {PLATFORM};
+        short dirs[5] = {PLATFORM}, op;
 
         for (int i = 0; i < HEIGHT; ++i) {
             for (int j = 0; j < WIDTH; ++j) {
-                if (board[i][j] != VOID && orig->board[i][j] == PLATFORM && !pointless(i, j)) {
+                if (og_board[i][j] == PLATFORM && !pointless(i, j)) {
                     possibs[it++] = {i, j};
                 }
             }
@@ -135,8 +162,7 @@ private:
             nx = x == 0 && dx[i] == -1 ? HEIGHT - 1 : (x + dx[i]) % HEIGHT;
             ny = y == 0 && dy[i] == -1 ? WIDTH - 1 : (y + dy[i]) % WIDTH;
 
-            if (board[nx][ny] != VOID) {
-                //segfault here???
+            if (board[nx][ny] != VOID && board[nx][ny] != (it + 2) % 4 + 2) {
                 dirs[it++] = i + 2;
             }
         }
@@ -147,12 +173,15 @@ private:
 
     int simulate() {
         int res = 0;
+        short x, y, dir;
+        uint64_t visited[HEIGHT][WIDTH] = {};
 
-        for (const auto& bot : bots) {
-            bool visited[HEIGHT][WIDTH][DIRS] = {};
-            short x = bot.x, y = bot.y, dir = board[y][x] >= UP ? board[y][x] : bot.dir;
+        for (int i = 0; i < bot_count; ++i) {
+            x = bots[i].x;
+            y = bots[i].y;
+            dir = board[y][x] >= UP ? board[y][x] : bots[i].dir;
 
-            visited[y][x][dir - 2] = true;
+            visited[y][x] |= 1 << (dir - 2 + i * 4);
 
             while(true) {
                 res++;
@@ -180,11 +209,11 @@ private:
                     dir = board[y][x];
                 }
 
-                if (visited[y][x][dir - 2]) {
+                if (visited[y][x] & 1 << (dir - 2 + i * 4)) {
                     break;
                 }
 
-                visited[y][x][dir - 2] = true;
+                visited[y][x] |= 1 << (dir - 2 + i * 4);
             }
         }
 
@@ -222,15 +251,15 @@ private:
         State curr = *this;
         State best = curr;
         int curr_score = curr.simulate();
-        int best_score = curr_score, delta, neigh_score; //count = 0;
-        double temp = 1000.0, elapsed;
-        constexpr double final_temp = 0.01, alpha = 0.99996;
+        int best_score = curr_score, delta, neigh_score, count = 0;
+        double temp = INIT_TEMP, elapsed = 0.0;
+        
         auto start = std::chrono::high_resolution_clock::now();
 
         do {
             State neigh(curr);
 
-            neigh.make_change(this);
+            neigh.make_change();
             neigh_score = neigh.simulate();
             delta = neigh_score - curr_score;
 
@@ -244,17 +273,18 @@ private:
                 }
             }
 
-            temp *= alpha;
+            temp *= ALPHA;
+            count++;
 
-            auto time = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double, std::milli> el = time - start;
-            elapsed = el.count();
-            //count++;
+            if (count % INTERVAL == 0) {
+                auto time = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double, std::milli> el = time - start;
+                elapsed = el.count();
+            }
         }
-        while (temp > final_temp && elapsed < LIMIT);
-        // std::cerr << elapsed << " < " << LIMIT << std::endl;
-        // std::cerr << temp << " > " << final_temp << std::endl;
-        // std::cerr << count << std::endl;
+        while (elapsed < LIMIT);
+        std::cerr << elapsed << " < " << LIMIT << std::endl;
+        std::cerr << count << std::endl;
 
         return best.get_new_arrows(this);
     }
@@ -262,11 +292,7 @@ private:
 public:
     State(const State *old_state = nullptr) {
         if (old_state) {
-            board = old_state->board;
-            bots = old_state->bots; 
-        }
-        else {
-            board = std::vector<std::vector<short>>(HEIGHT, std::vector<short>(WIDTH));
+            std::memcpy(board, old_state->board, sizeof(board));
         }
     }
 
@@ -282,7 +308,7 @@ public:
     void read_input() {
         std::string line;
         char curr;
-        short count;
+        short count, cell;
 
         for (int i = 0; i < HEIGHT; ++i) {
             std::getline(std::cin, line);
@@ -292,24 +318,27 @@ public:
 
                 switch(curr) {
                     case '#':
-                        board[i][j] = VOID;
+                        cell = VOID;
                         break;
                     case '.':
-                        board[i][j] = PLATFORM;
+                        cell = PLATFORM;
                         break;
                     case 'U':
-                        board[i][j] = UP;
+                        cell = UP;
                         break;
                     case 'R':
-                        board[i][j] = RIGHT;
+                        cell = RIGHT;
                         break;
                     case 'D':
-                        board[i][j] = DOWN;
+                        cell = DOWN;
                         break;
                     case 'L':
-                        board[i][j] = LEFT;
+                        cell = LEFT;
                         break;
                 }
+
+                og_board[i][j] = cell;
+                board[i][j] = cell;
             }
         }
         
@@ -339,7 +368,7 @@ public:
                     break;
             }
 
-            bots.push_back(new_bot);
+            bots[bot_count++] = new_bot;
         }
     }
 
