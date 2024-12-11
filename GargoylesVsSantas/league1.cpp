@@ -1,5 +1,6 @@
 #pragma GCC optimize("Ofast,inline,tracer")
 #pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
+#include <limits>
 #include <iostream>
 #include <stack>
 #include <math.h>
@@ -14,7 +15,7 @@ constexpr int INF = 99;
 constexpr int MAX_TURNS = 20;
 constexpr int MID_X = 960;
 constexpr int MID_Y = 380;
-constexpr int CLUSTER_THRESHOLD = 10000;
+constexpr int CLUSTER_THRESHOLD = 140 * 140;
 
 struct Gargoyle {
     int x;
@@ -102,16 +103,16 @@ class Solver {
     }
 
     void clusterize() {
-        int curr, size = 0;
+        int curr, size;
         
         clusters_count = 0;
 
         for (int i = 0; i < objects_count; ++i) {
             if (!capturable[i] || objects[i].cluster != -1) continue;
-
             std::stack<int> stk;
             stk.push(i);
             objects[i].cluster = clusters_count;
+            size = 1;
 
             while(!stk.empty()) {
                 curr = stk.top();
@@ -120,10 +121,11 @@ class Solver {
                 objects[curr].cluster = clusters_count;
 
                 for (int j = 0; j < objects_count; ++j) {
-                    if (j == curr || !capturable[j] || objects[i].cluster != -1) continue;
+                    if (j == curr || !capturable[j] || objects[j].cluster != -1) continue;
                     if (sq_dist(objects[curr].x, objects[curr].y, objects[j].x, objects[j].y) <= CLUSTER_THRESHOLD) {
                         stk.push(j);
-                        objects[i].cluster = clusters_count;
+                        objects[j].cluster = clusters_count;
+                        size++;
                     }
                 }
             }
@@ -157,7 +159,7 @@ class Solver {
     void calc_move() {
         // TODO: Implement weighted list
         int best_list[OBJECTS_LIMIT];
-        int best = -1, best_t, second = -1;
+        int best_count = 0, best, best_size = 0, second = -1, best_dist = std::numeric_limits<int>::max(), curr_dist;
         int curr_req;
         int my_best = INF, my_best_id;
         int dx, dy;
@@ -175,46 +177,110 @@ class Solver {
         for (int t = 0; t < MAX_TURNS; ++t) {
             for (int i = 0; i < objects_count; ++i) {
                 if (turns_req[i] == t) {
-                    if (best == -1) {
-                        best = i;
-                        best_t = t;
-                        break;
-                    }
+                    best_list[best_count++] = i;
                 }
+            }
+            if (best_count != 0) {
+                break;
             }
         }
 
-        if (best == -1) {
+        if (best_count == 0) {
             move = {MID_X, MAX_Y};
         }
         else {
+            for (int i = 0; i < best_count; ++i) {
+                if (cluster_sizes[objects[best_list[i]].cluster] > best_size) {
+                    best = best_list[i];
+                    best_size = cluster_sizes[objects[best].cluster];
+                }
+            }
             move.x = objects[best].x;
             move.y = objects[best].y + turns_req[best] * objects[best].speed;
+            std::cerr << cluster_sizes[objects[best].cluster] << ' ';
 
             if (turns_req[best] == 0) {
                 for (int i = 0; i < objects_count; ++i) {
-                    if (i != best && turns_req[i] <= 1) {
+                    curr_dist = sq_dist(objects[i].x, objects[i].y, objects[best].x, objects[best].y);
+                    if (i != best && curr_dist < best_dist) {
                         second = i;
-                        break;
+                        best_dist = curr_dist;
                     }
                 }
 
                 if (second != -1) {
-                    dx = objects[second].x - move.x;
-                    dy = objects[second].y - move.y + objects[second].speed;
+                    curr_req = turns_req[second];
+
+                    if (curr_req == 0) {
+                        dx = objects[second].x - move.x;
+                        dy = objects[second].y - move.y;
+                        std::cerr << "both: " << dx << ' ' << dy << std::endl;
+                    }
+                    else {
+                        capturable[best] = false;
+                        move_objects();
+                        my_gargoyle.x = move.x;
+                        my_gargoyle.y = move.y;
+                        best_count = 0;
+                        best_size = 0;
+
+                        for (int i = 0; i < objects_count; ++i) {
+                            if (capturable[i]) {
+                                turns_req[i] = calc_req(true, i);
+                            }
+                            else {
+                                turns_req[i] = -1;
+                            }
+                        }
+
+                        for (int t = 0; t < MAX_TURNS; ++t) {
+                            for (int i = 0; i < objects_count; ++i) {
+                                if (turns_req[i] == t) {
+                                    best_list[best_count++] = i;
+                                }
+                            }
+                            if (best_count != 0) {
+                                break;
+                            }
+                        }
+
+                        if (best_count == 0) {
+                            dx = MID_X - move.x;
+                            dy = MAX_Y - move.y;
+                            std::cerr << "centr" << std::endl;
+                        }
+                        else {
+                            for (int i = 0; i < best_count; ++i) {
+                                if (cluster_sizes[objects[best_list[i]].cluster] > best_size) {
+                                    second = best_list[i];
+                                    best_size = cluster_sizes[objects[second].cluster];
+                                    std::cerr << best_size << ' ';
+                                }
+                            }
+                            std::cerr << "next" << std::endl;
+                            dx = objects[second].x - move.x;
+                            dy = objects[second].y - move.y + turns_req[second] * objects[second].speed;
+                        }
+                    }
 
                     dist = std::sqrt(static_cast<double>(dx * dx + dy * dy));
-                    
-                    move.x += static_cast<double>(dx * (REACH - 5)) / dist;
-                    move.y += static_cast<double>(dy * (REACH - 5)) / dist;
+
+                    if (dist != 0) {
+                        move.x += static_cast<double>(dx * (REACH - 2)) / dist;
+                        move.y += static_cast<double>(dy * (REACH - 2)) / dist;
+                    }
                 }
             }
         }
     }
 
     void get_move() {
+        clusterize();
+        for (int i = 0; i < objects_count; ++i) {
+            std::cerr << objects[i].x << ' ' << objects[i].y << ' ' << objects[i].cluster << std::endl;
+        }
         calc_move();
-        std::cout << "FLY " << move.x << ' ' << move.y << " hello there" << std::endl;
+        std::cout << "FLY " << move.x << ' ' << (move.y > MAX_Y ? MAX_Y : move.y) << std::endl;
     }
 
     public:
