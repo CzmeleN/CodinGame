@@ -1,4 +1,3 @@
-#include <cstdlib>
 #pragma GCC optimize("Ofast,inline,tracer")
 #pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
 #include <iostream>
@@ -51,9 +50,9 @@ private:
     void move(const uint32_t dir, const bool mine) {
         int movable_id = mine ? ME : OPP;
         int non_movable_id = mine ? OPP : ME;
-        int id, emptied_count = 0;
+        int id;
         short last;
-        bool move;
+        bool move, all_clear;
 
         for (int i = 0; i < SIDE; ++i) {
             if (dir == UP) {
@@ -71,7 +70,6 @@ private:
             if (move) {
                 board[id] = EMPTY;
                 last = movable_id;
-                emptied_count++;
             }
 
             for (int j = 1; j < SIDE; ++j) {
@@ -125,28 +123,41 @@ private:
             }
         }
 
-        if (emptied_count == SIDE) {
-            if (dir == UP) {
-                id = (SIDE - 1) * SIDE;
-            } else if (dir == RIGHT) {
-                id = 0; 
-            } else if (dir == DOWN) {
-                id = 0;
-            } else { // LEFT
-                id = SIDE - 1;
+        for (int i = 0; i < SIDE; ++i) {
+            // ROWS
+            all_clear = true;
+            id = i * SIDE;
+            for (int j = 0; j < SIDE; ++j, ++id) {
+                if (board[id] > EMPTY) {
+                    all_clear = false;
+                    break;
+                }
             }
 
-            for (int i = 0; i < SIDE; ++i) {
-                board[id] = HOLE;
+            if (all_clear) {
+                id = i * SIDE;
 
-                if (dir == UP) {
-                    id++;
-                } else if (dir == RIGHT) {
-                    id += SIDE;
-                } else if (dir == DOWN) {
-                    id++;
-                } else { // LEFT
-                    id += SIDE;
+                for (int j = 0; j < SIDE; ++j, ++id) {
+                    board[id] = HOLE;
+                }
+            }
+
+            // COLUMNS
+            all_clear = true;
+            id = i;
+
+            for (int j = 0; j < SIDE; ++j, id += SIDE) {
+                if (board[id] > EMPTY) {
+                    all_clear = false;
+                    break;
+                }
+            }
+
+            if (all_clear) {
+                id = i;
+
+                for (int j = 0; j < SIDE; ++j, id += SIDE) {
+                    board[id] = HOLE;
                 }
             }
         }
@@ -163,7 +174,10 @@ private:
             } else if (my_count == 0) {
                 return 0;
             } else if (turn == 200) {
-                return my_count >= opp_count ? 1 : 0;
+                if (my_count > opp_count) {
+                    return 1;
+                }
+                return 0;
             }
 
             uint32_t choice = rand() % 4;
