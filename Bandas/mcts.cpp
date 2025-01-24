@@ -401,7 +401,6 @@ public:
         for (int i = 0; i < SIDE; ++i) {
             std::string line;
             std::getline(std::cin, line);
-            // std::cerr << line << std::endl;
 
             for (int j = 0; j < SIDE * 2; j += 2, ++id) {
                 c = line[j];
@@ -427,9 +426,6 @@ public:
                 }
             }
         }
-
-        // print_board();
-        // std::cerr << my_count << ' ' << opp_count << std::endl;
 
         turn++;
     }
@@ -497,45 +493,7 @@ public:
         std::cout << (res == UP ? "UP" : res == RIGHT ? "RIGHT" : res == DOWN ? "DOWN" : "LEFT") << std::endl;
         return res;
     }
-    // void find_best() {
-    //     Node sim;
-    //     int won, played, res = UP, curr, elapsed;
-    //     float max = 0.0, curr_score;
-    //     timeval start, end;
-    //
-    //     for (int i = 0; i < MOVES_COUNT; ++i) {
-    //         gettimeofday(&start, nullptr);
-    //         won = 0;
-    //         played = 0;
-    //         elapsed = 0;
-    //
-    //         while (elapsed < LIMIT) {
-    //             sim.copy(this);
-    //             sim.move(i, true);
-    //             curr = sim.random_game();
-    //             won += curr;
-    //             played++;
-    //
-    //             if (played % INTERVAL == 0) {
-    //                 gettimeofday(&end, nullptr);
-    //                 elapsed = (end.tv_sec - start.tv_sec) * SECOND + end.tv_usec - start.tv_usec;
-    //             }
-    //         }
-    //
-    //         curr_score = static_cast<float>(won) / played;
-    //
-    //         if (curr_score > max) {
-    //             max = curr_score;
-    //             res = i;
-    //         }
-    //
-    //         std::cerr << (i == UP ? "UP" : i == RIGHT ? "RIGHT" : i == DOWN ? "DOWN" : "LEFT") << ' ' << curr_score << ' ' << played << std::endl;
-    //
-    //     }
-    //
-    //     std::cout << (res == UP ? "UP" : res == RIGHT ? "RIGHT" : res == DOWN ? "DOWN" : "LEFT") << std::endl;
-    // }
-    //
+
     void init_copy(Node* cp) {
         copy(cp);
         parent = nullptr;
