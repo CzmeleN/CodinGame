@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <iomanip>
 
-constexpr int MODE = 2; // 0 - FLY OFF / 1 - CRASH / 2 - LAND;
+constexpr int MODE = 0; // 0 - FLY OFF / 1 - CRASH / 2 - LAND;
 constexpr double EPSILON = 1e-3;
 constexpr double MICRO_STEP = 1e-4;
 
@@ -20,7 +20,8 @@ struct Point {
 class MarsLander {
 private:
     vector<Point> surface;
-    vector<vector<pair<int, int>>> instructions = {{{0, 4}, {0, 4}, {0, 4}, {0, 4}, {0, 4}, {0, 4},{0, 4},{0, 4},{0, 4},{0, 4},{0, 4},{0, 4},{0, 4},}, // FLY OFF
+    vector<vector<pair<int, int>>> instructions = {{{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},
+    {60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},{60, 4},}, // FLY OFF
         { // CRASH
         {-15, 1}, {-30, 2}, {-45, 3}, {-60, 4}, {-75, 4}, {-90, 4},
         {-75, 3}, {-60, 2}, {-45, 1}, {-30, 2}, {-15, 3}, {0, 2},
@@ -144,14 +145,16 @@ public:
             cerr << "Collision detected at: " << fixed << setprecision(5) 
                  << X << " " << Y << endl;
             handle_collision();
+
+            if (!crashed) check_boundaries();
         } else {
             X = initial_X + initial_hSpeed + 0.5 * thrust_x;
             Y = initial_Y + initial_vSpeed + 0.5 * thrust_y;
             hSpeed += thrust_x;
             vSpeed += thrust_y;
+            check_boundaries();
         }
 
-        check_boundaries();
         cerr << fixed << setprecision(2) 
              << X << " " << Y << " "
              << hSpeed << " " << vSpeed << " "
