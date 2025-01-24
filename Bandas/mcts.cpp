@@ -1,4 +1,3 @@
-#include <limits>
 #pragma GCC optimize("Ofast,inline,tracer")
 #pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
 #include <cmath>
@@ -246,25 +245,33 @@ private:
     }
 
     int random_game() {
-        while(true) {
-            if (solved) {
-                return is_win ? 1 : 0;
-            }
+        Node sim;
+        int best_move, best_score;
+        sim.copy(this);
+        
+        while (true) {
+            if (sim.solved) return sim.is_win ? 1 : 0;
 
-            if (opp_count == 0) {
-                return 1;
-            } else if (my_count == 0) {
-                return 0;
-            } else if (turn == TURN_LIMIT) {
-                if (my_count > opp_count) {
-                    return 1;
+            best_move = -1;
+            best_score = -1;
+
+            for (int i = 0; i < MOVES_COUNT; ++i) {
+                Node child;
+
+                child.copy(&sim);
+                child.move(i);
+                child.change_whose();
+
+                if (child.my_count > child.opp_count) {
+                    best_move = i;
+                    break;
                 }
-                return 0;
             }
 
-            uint32_t choice = rand() % MOVES_COUNT;
-            move(choice);
-            change_whose();
+            if (best_move == -1) best_move = randU32() % MOVES_COUNT;
+
+            sim.move(best_move);
+            sim.change_whose();
         }
     }
 
@@ -277,9 +284,7 @@ private:
             return std::numeric_limits<float>::infinity();
         }
 
-        const float n = static_cast<float>(visits);
-
-        return (static_cast<float>(wins) / n) + UCB_C * std::sqrt(std::log(static_cast<float>(parent->visits)) / n);
+        return (static_cast<float>(wins) / visits) + UCB_C * std::sqrt(std::log(static_cast<float>(parent->visits)) / visits);
     }
 
     Node* select_node() {
@@ -317,11 +322,6 @@ private:
                 }
             }
 
-            if (selected == nullptr) {
-                std::cerr << "select node failure" << std::endl;
-                break;
-            }
-
             curr = selected;
         }
 
@@ -352,16 +352,6 @@ private:
         return this;
     }
 
-    int simulate() {
-        Node copy;
-        int res;
-
-        copy.copy(this);
-        res = copy.random_game();
-
-        return res;
-    }
-
     void backprop(int res) {
         Node* curr = this, *child;
 
@@ -384,24 +374,16 @@ private:
 
                     if (!child->solved) {
                         all_solved = false;
-                    } 
+                    }
                     if (child->is_win) {
                         any_win = true;
                         all_lose = false;
-                    } else {
-                        all_lose &= false;
                     }
                 }
 
-                if (curr->my_turn && any_win) {
+                if (all_solved) {
                     curr->solved = true;
-                    curr->is_win = true;
-                } else if (!curr->my_turn && all_lose && all_solved) {
-                    curr->solved = true;
-                    curr->is_win = true;
-                } else if (all_solved) {
-                    curr->solved = true;
-                    curr->is_win = curr->my_turn ? any_win : !any_win;
+                    curr->is_win = curr->my_turn ? any_win : all_lose;
                 }
             }
 
@@ -423,7 +405,7 @@ private:
                 res = selected->is_win ? 1 : 0;
             } else {
                  child = selected->expand();
-                res = child->simulate();
+                res = child->random_game();
             }
             selected->backprop(res);
 
