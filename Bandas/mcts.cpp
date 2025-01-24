@@ -62,8 +62,6 @@ private:
         opp_count = src->opp_count;
         my_turn = src->my_turn;
         parent = src;
-        solved = src->solved;
-        is_win = src->is_win;
     }
 
     void move(const uint32_t dir) {
@@ -226,8 +224,6 @@ private:
             }
         }
 
-        turn++;
-
         if (my_count == 0) {
             solved = true;
             is_win = false;
@@ -238,6 +234,10 @@ private:
             solved = true;
             is_win = (my_count > opp_count);
         }
+       
+        if (!my_turn && solved) is_win = !is_win;
+
+        turn++;
     }
 
     void change_whose() {
@@ -245,33 +245,21 @@ private:
     }
 
     int random_game() {
-        Node sim;
-        int best_move, best_score;
-        sim.copy(this);
-        
-        while (true) {
-            if (sim.solved) return sim.is_win ? 1 : 0;
-
-            best_move = -1;
-            best_score = -1;
-
-            for (int i = 0; i < MOVES_COUNT; ++i) {
-                Node child;
-
-                child.copy(&sim);
-                child.move(i);
-                child.change_whose();
-
-                if (child.my_count > child.opp_count) {
-                    best_move = i;
-                    break;
+        while(true) {
+            if (opp_count == 0) {
+                return 1;
+            } else if (my_count == 0) {
+                return 0;
+            } else if (turn == TURN_LIMIT) {
+                if (my_count > opp_count) {
+                    return 1;
                 }
+                return 0;
             }
 
-            if (best_move == -1) best_move = randU32() % MOVES_COUNT;
-
-            sim.move(best_move);
-            sim.change_whose();
+            uint32_t choice = rand() % MOVES_COUNT;
+            move(choice);
+            change_whose();
         }
     }
 
@@ -279,39 +267,32 @@ private:
         if (solved) {
             return is_win ? std::numeric_limits<float>::infinity() : -std::numeric_limits<float>::infinity();
         }
-
         if (visits == 0) {
             return std::numeric_limits<float>::infinity();
         }
+        const float n = static_cast<float>(visits);
 
-        return (static_cast<float>(wins) / visits) + UCB_C * std::sqrt(std::log(static_cast<float>(parent->visits)) / visits);
+        return (static_cast<float>(wins) / n) + UCB_C * std::sqrt(std::log(static_cast<float>(parent->visits)) / n);
     }
 
     Node* select_node() {
         Node *curr = this, *selected, *child;
         float best, ucb;
-        bool has_unexpanded;
 
         while (true) {
-            if (curr->solved) {
-                return curr;
+            if (curr->solved) return curr;
+
+            if (!(curr->children[0] != nullptr && curr->children[1] != nullptr && curr->children[2] != nullptr && curr->children[3] != nullptr && curr->my_count != 0 && curr->opp_count != 0 && curr->turn != TURN_LIMIT)) {
+                break;
             }
 
-            has_unexpanded = false;
+            best = -1.0;
+            selected = nullptr;
 
             for (int i = 0; i < MOVES_COUNT; ++i) {
                 if (curr->children[i] == nullptr) {
-                    has_unexpanded = true;
-                    break;
+                    continue;
                 }
-            }
-
-            if (has_unexpanded) return curr;
-
-            selected = nullptr;
-            best = -std::numeric_limits<float>::infinity();
-
-            for (int i = 0; i < MOVES_COUNT; ++i) {
                 child = curr->children[i];
 
                 ucb = child->ucb_val();
@@ -322,6 +303,11 @@ private:
                 }
             }
 
+            if (selected == nullptr) {
+                std::cerr << "select node failure" << std::endl;
+                break;
+            }
+
             curr = selected;
         }
 
@@ -329,51 +315,56 @@ private:
     }
 
     Node* expand() {
-        Node* child;
+        int next_move;
 
-        for (int i = 0; i < MOVES_COUNT; ++i) {
-            if (children[i] == nullptr) {
-                child = new Node();
-
-                child->copy(this);
-                child->move(i);
-                child->change_whose();
-                children[i] = child;
-
-                if (child->solved) {
-                    child->visits = 1;
-                    child->wins = child->is_win ? 1 : 0;
-                }
-
-                return child;
-            }
+        if (children[UP] == nullptr) {
+            next_move = UP;
+        } else if (children[RIGHT] == nullptr) {
+            next_move = RIGHT;
+        } else if (children[DOWN] == nullptr) {
+            next_move = DOWN; 
+        } else if (children[LEFT] == nullptr) {
+            next_move = LEFT;
+        } else {
+            return this;
         }
 
-        return this;
+        Node* child = new Node();
+        child->copy(this);
+        child->move(next_move);
+        child->change_whose();
+        children[next_move] = child;
+
+        return child;
+    }
+
+    int simulate() {
+        Node copy;
+        int res;
+
+        copy.copy(this);
+        res = copy.random_game();
+
+        return res;
     }
 
     void backprop(int res) {
-        Node* curr = this, *child;
+        Node* curr = this;
 
         while (curr != nullptr) {
             curr->visits += 1;
             curr->wins += res;
 
             if (!curr->solved) {
-                bool all_solved = true;
+                bool all_children_solved = true;
                 bool any_win = false;
                 bool all_lose = true;
 
                 for (int i = 0; i < MOVES_COUNT; ++i) {
-                    child = curr->children[i];
-
-                    if (child == nullptr) {
-                        all_solved = false;
-                        continue;
-                    }
-
-                    if (!child->solved) {
-                        all_solved = false;
+                    Node* child = curr->children[i];
+                    if (!child || !child->solved) {
+                        all_children_solved = false;
+                        break;
                     }
                     if (child->is_win) {
                         any_win = true;
@@ -381,12 +372,19 @@ private:
                     }
                 }
 
-                if (all_solved) {
-                    curr->solved = true;
-                    curr->is_win = curr->my_turn ? any_win : all_lose;
+                if (all_children_solved) {
+                    if (any_win) {
+                        curr->solved = true;
+                        curr->is_win = true;
+                    }
+                    if (all_lose) {
+                        curr->solved = true;
+                        curr->is_win = false;
+                    }
                 }
             }
 
+            res = 1 - res;
             curr = curr->parent;
         }
     }
@@ -400,14 +398,9 @@ private:
         
         while (elapsed < LIMIT) {
             selected = select_node();
-
-            if (selected->solved) {
-                res = selected->is_win ? 1 : 0;
-            } else {
-                 child = selected->expand();
-                res = child->random_game();
-            }
-            selected->backprop(res);
+            child = selected->expand();
+            res = child->simulate();
+            child->backprop(res);
 
             if (++played % INTERVAL == 0) {
                 gettimeofday(&end, nullptr);
@@ -462,6 +455,7 @@ public:
         for (int i = 0; i < SIDE; ++i) {
             std::string line;
             std::getline(std::cin, line);
+            // std::cerr << line << std::endl;
 
             for (int j = 0; j < SIDE * 2; j += 2, ++id) {
                 c = line[j];
@@ -487,6 +481,9 @@ public:
                 }
             }
         }
+
+        // print_board();
+        // std::cerr << my_count << ' ' << opp_count << std::endl;
 
         turn++;
     }
@@ -542,15 +539,12 @@ public:
 
             if (child->visits > 0) {
                 score = static_cast<float>(child->wins) / child->visits;
-            } else {
-                score = child->is_win ? 1 : 0;
-            }
 
-            if (score > best) {
-                best = score;
-                res = i;
+                if (score > best) {
+                    best = score;
+                    res = i;
+                }
             }
-
             std::cerr << (i == UP ? "UP" : i == RIGHT ? "RIGHT" : i == DOWN ? "DOWN" : "LEFT") << ' ' << score << ' ' << child->visits << std::endl;
         }
 
