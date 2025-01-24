@@ -282,17 +282,26 @@ private:
         while (true) {
             if (curr->solved) return curr;
 
-            if (!(curr->children[0] != nullptr && curr->children[1] != nullptr && curr->children[2] != nullptr && curr->children[3] != nullptr && curr->my_count != 0 && curr->opp_count != 0 && curr->turn != TURN_LIMIT)) {
-                break;
-            }
-
-            best = -1.0;
-            selected = nullptr;
+            bool has_unexpanded = false;
 
             for (int i = 0; i < MOVES_COUNT; ++i) {
                 if (curr->children[i] == nullptr) {
-                    continue;
+                    has_unexpanded = true;
+                    break;
                 }
+            }
+
+            if (has_unexpanded) {
+                break;
+            }
+
+            best = -std::numeric_limits<float>::infinity();
+            selected = nullptr;
+
+            for (int i = 0; i < MOVES_COUNT; ++i) {
+                // if (curr->children[i] == nullptr) {
+                //     continue;
+                // }
                 child = curr->children[i];
 
                 ucb = child->ucb_val();
@@ -512,7 +521,8 @@ public:
     int find_root(Node& solver) {
         for (int i = 0; i < MOVES_COUNT; ++i) {
             if (children[i] == nullptr) {
-                continue;
+                children[i] = new Node();
+                children[i]->copy(this);
             }
 
             if (std::memcmp(solver.board, children[i]->board, sizeof(short) * MAX) == 0) {
