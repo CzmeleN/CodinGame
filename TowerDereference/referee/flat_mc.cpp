@@ -1,4 +1,3 @@
-// TODO: fix MOVE_ATTACKERS
 // LINK: https://www.codingame.com/multiplayer/bot-programming/tower-dereference
 #pragma GCC optimize("Ofast,inline,tracer")
 #pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
@@ -94,8 +93,8 @@ constexpr fint WAVE_BOUNTIES[WAVES] = { 25, 30, 30, 20, 22, 25, 25, 30,  30 };
 
 // SIMULATION STATS
 constexpr fint SEC = 1'000'000;
-constexpr fint FIRST_TIME_LIMIT = 985'000;
-constexpr fint TURN_TIME_LIMIT = 49'500;
+constexpr fint FIRST_TIME_LIMIT = 999'900;
+constexpr fint TURN_TIME_LIMIT = 49'900;
 constexpr fint RAND_MOVES_COUNT = 4;
 
 enum Player { ONE, TWO };
@@ -159,7 +158,6 @@ private:
     static fint bases_count;
     static fint p1_bases[SIDE], p2_bases[SIDE];
     static vector<pair<Opt, Opt>> options;
-    static vector<Game> children;
     static vector<pff> wr;
     static fint good_tiles[MAX];
     static fint good_tiles_count;
@@ -1208,6 +1206,7 @@ private:
         }
 
         for (fint type = 0; type < TYPES_COUNT; ++type) {
+            if (type != GUN) continue;
             new_cash = cash[my_id] - PLACE_COSTS[type];
 
             if (new_cash < 0) {
@@ -1221,6 +1220,7 @@ private:
                     options.push_back({Opt{PLACE, id, type}, OPT_PASS});
 
                     for (fint type2 = 0; type2 < TYPES_COUNT; ++type2) {
+                        if (type2 != GUN) continue;
                         if (new_cash >= PLACE_COSTS[type2]) {
                             for (fint j = i + 1; j < good_tiles_count; ++j) {
                                 id2 = good_tiles[j];
@@ -1288,19 +1288,11 @@ private:
         Game curr;
         struct timeval tv;
 
-        children.resize(count, *this);
         wr.resize(count, {0, 0});
-
-        for (fint i = 0; i < count; ++i) {
-            children[i].apply_opts(options[i]);
-        }
         
         while (start_time < end_time) {
-            if (id == count) {
-                id = 0;
-            }
-
-            curr = children[id];
+            curr = *this;
+            curr.apply_opts(options[id]);
 
             if (curr.random_game() == 1) {
                 wr[id].first++;
@@ -1309,12 +1301,16 @@ private:
             ++wr[id].second;
             simuls++;
 
+            if (++id == count) {
+                id = 0;
+            }
+
             gettimeofday(&tv, nullptr);
             start_time = tv.tv_sec * SEC + tv.tv_usec;
         }
 
 
-        for (fint i = id; i < id + simuls && i < id + count; ++i) {
+        for (fint i = 0; i < simuls && i < count; ++i) {
             curr_wr = wr[i].first / (float)wr[i].second;
 
             if (curr_wr > best) {
@@ -1404,7 +1400,40 @@ private:
             return;
         }
 
-        cout << (o.option == PLACE ? "BUILD " : "UPGRADE ") << o.id << ' ' << o.type << ';';
+        if (o.option == PLACE) {
+            cout << "BUILD " << o.id % SIDE << ' ' << o.id / SIDE << ' ';
+
+            switch (o.type) {
+            case GUN:
+                cout << "GUNTOWER";
+                break;
+            case GLUE:
+                cout << "GLUETOWER";
+                break;
+            case HEAL:
+                cout << "HEALTOWER";
+                break;
+            case FIRE:
+                cout << "FIRETOWER";
+                break;
+            }
+        } else {
+            cout << "UPGRADE " << o.id << ' ';
+
+            switch (o.type) {
+            case RELOAD:
+                cout << "RELOAD";
+                break;
+            case RANGE:
+                cout << "RANGE";
+                break;
+            case DAMAGE:
+                cout << "DAMAGE";
+                break;
+            }
+        }
+
+        cout << ';';
     }
 
     void find_write_best() {
@@ -1424,18 +1453,20 @@ private:
 
     void read_starting() {
         fint id;
-        string line;
         struct timeval tv;
 
-        cin >> my_id >> id >> id;
+        cin >> my_id;
 
         gettimeofday(&tv, nullptr);
         start_time = tv.tv_sec * SEC + tv.tv_usec;
         end_time = start_time + FIRST_TIME_LIMIT;
 
+        cin >> id >> id;
+
         id = 0;
 
         for (fint i = 0; i < SIDE; ++i) {
+            string line;
             cin >> line; 
 
             for (fint j = 0; j < SIDE; ++j) {
@@ -1455,7 +1486,7 @@ private:
         struct timeval tv;
         bool spawned;
 
-        cin >> cash[my_id] >> lives[my_id];
+        cin >> cash[my_id];
 
         if (turn != 0) {
             gettimeofday(&tv, nullptr);
@@ -1463,11 +1494,13 @@ private:
             end_time = start_time + TURN_TIME_LIMIT;
         }
 
+        cin >> lives[my_id];
+
         cin >> cash[opp] >> lives[opp];
         cin >> towers_count;
 
         for (fint i = 0; i < towers_count; ++i) {
-            cin >> type >> id >> owner >> x >> y >> damage >> range >> reload >> cooldown;
+            cin >> type >> id >> owner >> y >> x >> damage >> range >> reload >> cooldown;
 
             if (type[0] == 'F') {
                 type_id = FIRE;
@@ -1499,11 +1532,10 @@ private:
             }
 
             towers[i] = code_tower(type_id, i, x, y, owner, damage_level, range_level, reload_level, cooldown);
+            board[x * SIDE + y] = TOWER;
         }
 
-        if (towers_count > 0) {
-            sort(towers, towers + towers_count);
-        }
+        sort(towers, towers + towers_count);
 
         cin >> attackers;
 
@@ -1512,7 +1544,7 @@ private:
         spawned = false;
 
         for (fint i = 0; i < attackers; ++i) {
-            cin >> id >> owner >> fx >> fy >> hp >> max_hp >> curr_speed >> max_speed >> slow_time >> bounty;
+            cin >> id >> owner >> fy >> fx >> hp >> max_hp >> curr_speed >> max_speed >> slow_time >> bounty;
 
             x = fx;
             y = fy;
@@ -1631,7 +1663,6 @@ public:
 
         read_turn();
         find_write_best();
-        exit(1);
     }
 
     // void init() {
@@ -1695,7 +1726,6 @@ fint Game::p2_upgradeable_count;
 fint Game::start_time;
 fint Game::end_time;
 vector<pair<Opt, Opt>> Game::options;
-vector<Game> Game::children;
 vector<pff> Game::wr;
 fint Game::p1_possibs[MAX * POSSIBS_COUNT];
 fint Game::p2_possibs[MAX * POSSIBS_COUNT];
