@@ -1,9 +1,9 @@
-#include <cstdlib>
 #pragma GCC optimize("Ofast,inline,tracer")
 #pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
 #include <iostream>
 #include <cstring>
 #include <stdint.h>
+#include <sys/time.h>
 
 constexpr int SIDE = 8;
 constexpr int MAX = 64;
@@ -18,7 +18,9 @@ constexpr uint32_t RIGHT = 1;
 constexpr uint32_t DOWN = 2;
 constexpr uint32_t LEFT = 3;
 
-constexpr int LIMIT = 100;
+constexpr int SECOND = 1000000;
+constexpr int LIMIT = 25000;
+constexpr int INTERVAL = 50;
 
 uint64_t seed = 1234567;
 
@@ -48,9 +50,9 @@ private:
     void move(const uint32_t dir, const bool mine) {
         int movable_id = mine ? ME : OPP;
         int non_movable_id = mine ? OPP : ME;
-        int id, emptied_count = 0;
+        int id;
         short last;
-        bool move;
+        bool move, all_clear;
 
         for (int i = 0; i < SIDE; ++i) {
             if (dir == UP) {
@@ -68,7 +70,6 @@ private:
             if (move) {
                 board[id] = EMPTY;
                 last = movable_id;
-                emptied_count++;
             }
 
             for (int j = 1; j < SIDE; ++j) {
@@ -122,28 +123,41 @@ private:
             }
         }
 
-        if (emptied_count == SIDE) {
-            if (dir == UP) {
-                id = (SIDE - 1) * SIDE;
-            } else if (dir == RIGHT) {
-                id = 0; 
-            } else if (dir == DOWN) {
-                id = 0;
-            } else { // LEFT
-                id = SIDE - 1;
+        for (int i = 0; i < SIDE; ++i) {
+            // ROWS
+            all_clear = true;
+            id = i * SIDE;
+            for (int j = 0; j < SIDE; ++j, ++id) {
+                if (board[id] > EMPTY) {
+                    all_clear = false;
+                    break;
+                }
             }
 
-            for (int i = 0; i < SIDE; ++i) {
-                board[id] = HOLE;
+            if (all_clear) {
+                id = i * SIDE;
 
-                if (dir == UP) {
-                    id++;
-                } else if (dir == RIGHT) {
-                    id += SIDE;
-                } else if (dir == DOWN) {
-                    id++;
-                } else { // LEFT
-                    id += SIDE;
+                for (int j = 0; j < SIDE; ++j, ++id) {
+                    board[id] = HOLE;
+                }
+            }
+
+            // COLUMNS
+            all_clear = true;
+            id = i;
+
+            for (int j = 0; j < SIDE; ++j, id += SIDE) {
+                if (board[id] > EMPTY) {
+                    all_clear = false;
+                    break;
+                }
+            }
+
+            if (all_clear) {
+                id = i;
+
+                for (int j = 0; j < SIDE; ++j, id += SIDE) {
+                    board[id] = HOLE;
                 }
             }
         }
@@ -151,22 +165,23 @@ private:
         turn++;
     }
 
-
-    bool random_game() {
+    int random_game() {
         bool my_turn = false;
 
         while(true) {
-            uint32_t choice = rand() % 4;
-            move(choice, my_turn);
-            
             if (opp_count == 0) {
-                return true;
+                return 1;
             } else if (my_count == 0) {
-                return false;
+                return 0;
             } else if (turn == 200) {
-                return my_count >= opp_count;
+                if (my_count > opp_count) {
+                    return 1;
+                }
+                return 0;
             }
 
+            uint32_t choice = rand() % 4;
+            move(choice, my_turn);
             my_turn = !my_turn;
         }
     }
@@ -204,16 +219,23 @@ public:
                 } else if (c == '0') {
                     if (my_id == 0) {
                         my_count++;
+                    } else {
+                        opp_count++;
                     }
                     board[id] = my_id == 0 ? ME : OPP;
                 } else  {
                     if (my_id == 1) {
                         my_count++;
+                    } else {
+                        opp_count++;
                     }
                     board[id] = my_id == 1 ? ME : OPP;
                 }
             }
         }
+
+        // print_board();
+        // std::cerr << my_count << ' ' << opp_count << std::endl;
 
         turn++;
     }
@@ -231,24 +253,38 @@ public:
 
     void find_best() {
         Solver sim;
-        int won, max = 0, res = UP;
+        int won, played, res = UP, curr, elapsed;
+        float max = 0.0, curr_score;
+        timeval start, end;
         
         for (int i = 0; i < 4; ++i) {
+            gettimeofday(&start, nullptr);
             won = 0;
+            played = 0;
+            elapsed = 0;
 
-            for (int j = 0; j < LIMIT; ++j) {
+            while (elapsed < LIMIT) {
                 sim.copy(this);
                 sim.move(i, true);
-                
-                if (sim.random_game()) {
-                    won++;
+                curr = sim.random_game();
+                won += curr;
+                played++;
+
+                if (played % INTERVAL == 0) {
+                    gettimeofday(&end, nullptr);
+                    elapsed = (end.tv_sec - start.tv_sec) * SECOND + end.tv_usec - start.tv_usec;
                 }
             }
 
-            if (won > max) {
-                max = won;
+            curr_score = static_cast<float>(won) / played;
+
+            if (curr_score > max) {
+                max = curr_score;
                 res = i;
             }
+
+            std::cerr << (i == UP ? "UP" : i == RIGHT ? "RIGHT" : i == DOWN ? "DOWN" : "LEFT") << ' ' << curr_score << ' ' << played << std::endl;
+
         }
 
         std::cout << (res == UP ? "UP" : res == RIGHT ? "RIGHT" : res == DOWN ? "DOWN" : "LEFT") << std::endl;
