@@ -7,13 +7,22 @@
 #include <queue>
 #include <algorithm>
 #include <sys/time.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <filesystem>
+#include <fstream>
+#include <signal.h>
 
 using namespace std;
+using namespace filesystem;
+
 using fint = int_fast16_t; // however will be enlarged to 64 bits
 using cint = uint64_t; // TOWER CODE INT
 using pff = pair<fint, fint>;
+using sv = string_view;
 
 // MAP
+constexpr sv MAPS_FOLDER = "maps/";
 constexpr fint SIDE = 17;
 constexpr fint MAX = SIDE * SIDE;
 constexpr fint MIN_LEN = 30;
@@ -70,9 +79,9 @@ constexpr fint DAMAGES[16] = { 5, 8, 15, 30, // HEAL
                                8, 15, 25, 40 }; // GLUE
 
 constexpr fint COD_RANGES[16] { 30, 40, 50, 60, // HEAL
-                                 15, 20, 23, 25, // FIRE
-                                 30, 40, 50, 60, // GUN
-                                 30, 40, 50, 60 }; // GLUE
+                                15, 20, 23, 25, // FIRE
+                                30, 40, 50, 60, // GUN
+                                30, 40, 50, 60 }; // GLUE
 
 constexpr fint RANGES[16] = { 90'000, 160'000, 250'000, 360'000, // HEAL
                               22'500, 40'000, 52'900, 62'500, // FIRE
@@ -98,9 +107,22 @@ constexpr fint WAVE_BOUNTIES[WAVES] = { 25, 30, 30, 20, 22, 25, 25, 30,  30 };
 
 // SIMULATION STATS
 constexpr fint SEC = 1'000'000;
-constexpr fint FIRST_TIME_LIMIT = 999'900;
-constexpr fint TURN_TIME_LIMIT = 49'900;
+constexpr fint FIRST_TIME_LIMIT = 1'000'500;
+constexpr fint TURN_TIME_LIMIT = 500'500;
 constexpr fint RAND_MOVES_COUNT = 4;
+
+// MISC
+constexpr sv ANSI_CLEAR = "\033[0m";
+
+constexpr sv ANSI_RED = "\033[31m"; // two turrer
+constexpr sv ANSI_YELLOW = "\033[33m"; // canyon
+constexpr sv ANSI_BLUE = "\033[34m"; // one turret
+constexpr sv ANSI_MAGENTA = "\033[35m"; // two attacker
+constexpr sv ANSI_CYAN = "\033[36m"; // one attacker
+
+constexpr sv ANSI_BG_RED = "\033[41m";
+constexpr sv ANSI_BG_GREEN = "\033[42m";
+constexpr sv ANSI_BG_BLUE = "\033[44m";
 
 enum Player { ONE, TWO };
 enum Cell { EMPTY, CANYON, TOWER };
@@ -134,13 +156,135 @@ struct Opt {
     fint type;
 };
 
+constexpr Opt OPT_PASS = {PASS, 0, 0};
+
 struct Upgradeable {
     fint id;
     fint lvl;
     fint which;
 };
 
-constexpr Opt OPT_PASS = {PASS, 0, 0};
+struct Pipe {
+    int in[2];
+    int out[2];
+};
+
+struct BotIO {
+    Pipe stdio;
+    int err_fd;
+};
+
+bool make_pipes(Pipe &p) {
+    return (pipe(p.in) == 0 && (pipe(p.out) == 0)); 
+}
+
+void close_pipes(Pipe &p) {
+    close(p.in[0]);
+    close(p.in[1]);
+
+    close(p.out[0]);
+    close(p.out[1]);
+}
+
+void send(int fd, const string &s) {
+    ssize_t n, left = s.size();
+    const char *ptr = s.data();
+
+    while (left > 0) {
+        n = write(fd, ptr, left);
+
+        if (n <= 0) throw runtime_error("write()");
+
+        left -= n;
+        ptr += n;
+    }
+}
+
+string receive(int fd, fint timeout_ms) {
+    string ans;
+    char buff[4096];
+    fd_set rds;
+    struct timeval tv;
+    ssize_t n;
+
+    FD_ZERO(&rds);
+    FD_SET(fd, &rds);
+
+    tv = {timeout_ms / 1000, (timeout_ms % 1000) * 1000 };
+
+    if (select(fd+1, &rds, nullptr, nullptr, &tv) <= 0)
+        throw runtime_error("bot timeout / select()");
+
+    n = read(fd, buff, sizeof(buff) - 1);
+
+    if (n <= 0) throw runtime_error("read()");
+
+    buff[n] = 0;
+    ans = buff;
+
+    return ans;
+}
+
+void print_err(int fd, string tag) {
+    char buff[4096];
+    ssize_t n;
+    fd_set set;
+    timeval tv {0, 0};
+
+    FD_ZERO(&set);
+    FD_SET(fd, &set);
+
+    if (select(fd + 1, &set, nullptr, nullptr, &tv) <= 0) return;
+
+    n = read(fd, buff, sizeof(buff) - 1);
+
+    if (n > 0) {
+        buff[n] = '\0';
+        cerr << ANSI_RED << tag << buff << ANSI_CLEAR;
+    }
+}
+
+pid_t spawn_bot(const char *exe, Pipe &p, int &err_parent_fd) {
+    int err_pipe[2];
+
+    if (!make_pipes(p) || pipe(err_pipe) != 0) {
+        perror("pipe");
+
+        exit(1);
+    }
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        perror("fork");
+
+        exit(1);
+    }
+
+    if (pid == 0) {
+        dup2(p.in[0],  STDIN_FILENO);
+        dup2(p.out[1], STDOUT_FILENO);
+        dup2(err_pipe[1], STDERR_FILENO);
+
+        close_pipes(p);
+        close(err_pipe[0]); close(err_pipe[1]);
+
+        char* const argv[] = { const_cast<char*>(exe), nullptr };
+
+        execvp(argv[0], argv);
+        perror("execvp");
+
+        exit(1);
+    }
+
+    close(p.in[0]);
+    close(p.out[1]);
+    close(err_pipe[1]);
+
+    err_parent_fd = err_pipe[0];
+
+    return pid;
+}
 
 static u_int64_t seed = 1234567;
 
@@ -169,6 +313,7 @@ private:
     static Upgradeable p1_upgradeables[MAX * POSSIBS_COUNT], p2_upgradeables[MAX * POSSIBS_COUNT];
     static fint p1_upgradeable_count, p2_upgradeable_count;
     static fint start_time, end_time;
+    static fint placed_towers;
     fint board[MAX];
     cint towers[MAX];
     fint towers_count;
@@ -231,61 +376,6 @@ private:
 
         return {x * 100 + 50, y * 100 + 50};
     }
-
-    // void bfs_paths() {
-    //     queue<BFS_Elem> q;
-    //     fint prev[MAX];
-    //     BFS_Elem curr;
-    //     fint next;
-    //     fint *list;
-    //
-    //     for (fint p = ONE; p <= TWO; ++p) {
-    //         q = queue<BFS_Elem>();
-    //         q.emplace(BFS_Elem{p == ONE ? bases[ONE] : bases[TWO], -1});
-    //
-    //         for (int i = 0; i < MAX; ++i) {
-    //             prev[i] = 0;
-    //         }
-    //
-    //         while (!q.empty()) {
-    //             curr = q.front();
-    //             q.pop();
-    //
-    //             if (prev[curr.id] != 0) continue;
-    //
-    //             prev[curr.id] = curr.prev;
-    //
-    //             if (curr.id == bases[opponent(p)]) {
-    //                 cout << "yes\n";
-    //                 break;
-    //             }
-    //
-    //             for (fint i = 0; i < DIRS; ++i) {
-    //                 next = curr.id + DX[i] * SIDE + DY[i];
-    //
-    //                 if ((next < SIDE || next >= SIDE * (SIDE - 1) || next % SIDE == 0 || next % SIDE == SIDE - 1) && next != bases[opponent(p)]) continue;
-    //
-    //                 q.emplace(BFS_Elem{next, curr.id});
-    //             }
-    //         }
-    //
-    //         next = curr.id;
-    //         path_lens[p] = 0;
-    //
-    //         if (p == ONE) {
-    //             list = p1_path;
-    //         } else {
-    //             list = p2_path;
-    //         }
-    //
-    //         while (next != -1) {
-    //             list[path_lens[p]++] = next;
-    //             next = prev[next];
-    //         }
-    //
-    //         reverse(list, list + path_lens[p]);
-    //     }
-    // }
 
     static bool p1_attacker_comp(const Attacker &a, const Attacker &b) {
         return p1_real_dists[a.pos] * 10 - a.progress < p1_real_dists[b.pos] * 10 - b.progress;
@@ -582,6 +672,7 @@ private:
         wave_bounty = WAVE_BOUNTIES[0];
         attackers_count[ONE] = 0;
         attackers_count[TWO] = 0;
+        placed_towers = 0;
     }
 
     void print_statics() {
@@ -611,14 +702,6 @@ private:
             c = towers[i];
             cout << "type: " << get_type(c) << " dist: " << get_dist(c) << " id: " << get_real_id(c) << " pos: " << get_board_id(c) << " player: " << get_player(c) << " cooldown: " << get_cooldown(c) << '\n';
         }
-    }
-
-    void provide_data() {
-        return;
-    }
-
-    void get_input() {
-        return;
     }
 
     bool shoot(cint c) {
@@ -711,6 +794,7 @@ private:
 
             if (attackers_count[p] > 1) sort(list, list + attackers_count[p], p == ONE ? p1_attacker_comp : p2_attacker_comp);
         }
+
     }
 
     void remove_attacker(fint player, fint id) {
@@ -764,7 +848,7 @@ private:
 
             for (fint i = 0; i < wave_count; ++i) {
                 curr.progress = rand_u32() % 10;
-                curr.pos = bases[bases_count == 1 ? 0 : rand_u32() % bases_count];
+                curr.pos = bases[bases_count == 1 ? 0: rand_u32() % bases_count];
                 curr.health = wave_hp;
                 curr.max_hp = wave_hp;
                 curr.speed = wave_speed;
@@ -817,20 +901,6 @@ private:
             if (attackers_count[p] > 1) sort(list, list + attackers_count[p], p == ONE ? p1_attacker_comp : p2_attacker_comp);
         }
 
-        // Attacker *list;
-        // Attacker stats = get_stats();
-        // fint count = get_count();
-        //
-        // for (fint p = ONE; p <= TWO; ++p) {
-        //     list = p == ONE ? p1_attackers : p2_attackers;
-        //
-        //     for (fint c = 0; c < count; ++c) {
-        //         list[attackers_count[p]++] = stats;
-        //         list[attackers_count[p]].path_id = rand_u32() % (p == ONE ? p1_paths_count : p2_paths_count);
-        //         list[attackers_count[p]].pos = (p == ONE ? p1_paths : p2_paths)[0];
-        //     }
-        // }
-
         wave_plus();
     }
 
@@ -839,7 +909,7 @@ private:
         fint *possibs_list, *counts_list;
         fint count, id, neigh_x, neigh_y, x, y, to_move, progress, diff, id1 = 0, id2 = 0, p, i;
         bool removed;
-
+        
         while (true) {
             if (id2 == attackers_count[TWO] || (id1 < attackers_count[ONE] && p1_with_p2_attacker_comp(p1_attackers[id1], p2_attackers[id2]))) {
                 if (id1 == attackers_count[ONE]) {
@@ -887,7 +957,7 @@ private:
                     } else {
                         id = possibs_list[id * POSSIBS_COUNT + rand_u32() % count];
                     }
-
+                    
                     list[i].pos = id;
                     to_move -= TILE_SIZE - progress;
                     progress = 0;
@@ -969,6 +1039,77 @@ private:
         if (attackers_count[ONE] > 1) sort(p1_attackers, p1_attackers + attackers_count[ONE], p1_attacker_comp);
         if (attackers_count[TWO] > 1) sort(p2_attackers, p2_attackers + attackers_count[TWO], p2_attacker_comp);
     }
+
+    // void old_move_attackers() {
+    //     Attacker *list;
+    //     fint curr_x, curr_y, neigh_x, neigh_y, id, len, prog, on_list, neigh, diff;
+    //     fint *paths;
+    //
+    //     for (fint p = ONE; p <= TWO; ++p) {
+    //         list = p == ONE ? p1_attackers : p2_attackers;
+    //         len = p == ONE ? p1_path_len : p2_path_len;
+    //         paths = p == ONE ? p1_paths : p2_paths;
+    //
+    //         for (fint i = 0; i < attackers_count[p]; ++i) {
+    //             if (list[i].slowed > 0) {
+    //                 list[i].progress += list[i].speed / SLOW_MULTIPLIER;
+    //                 list[i].slowed--;
+    //             } else {
+    //                 list[i].progress += list[i].speed;
+    //             }
+    //
+    //             prog = list[i].progress;
+    //
+    //             if (list[i].progress >= len * 10) {
+    //                 remove_attacker(p, i--);
+    //
+    //                 if (lives[p] > 0) lives[p]--;
+    //             } else {
+    //                 on_list = list[i].path_id * len + prog / 10;
+    //                 id = paths[on_list];
+    //
+    //                 curr_x = id / 10;
+    //                 curr_y = id % 10;
+    //                 list[i].x = curr_x * 100 + 50;
+    //                 list[i].y = curr_y * 100 + 50;
+    //
+    //                 if (id == len - 1 || id == 0) {
+    //                     neigh_x = curr_x;
+    //                     neigh_y = curr_y == 1 ? 0 : SIDE - 1;
+    //                 } else {
+    //                     diff = prog % 10;
+    //
+    //                     if (diff >= 5) {
+    //                         neigh = paths[on_list + 1];
+    //                         diff -= 5;
+    //                     } else {
+    //                         neigh = paths[on_list - 1];
+    //                         diff = 5 - diff;
+    //                     }
+    //
+    //                     neigh_x = neigh / 10;
+    //                     neigh_y = neigh % 10;
+    //                 }
+    //
+    //                 if (neigh_x == curr_x + 1) {
+    //                     // DOWN
+    //                     list[i].x += diff * 10;
+    //                 } else if (neigh_x == curr_x - 1) {
+    //                     // UP
+    //                     list[i].x -= diff * 10;
+    //                 } else if (neigh_y == curr_y + 1) {
+    //                     // RIGHT
+    //                     list[i].y += diff * 10;
+    //                 } else {
+    //                     // LEFT
+    //                     list[i].y -= diff * 10;
+    //                 }
+    //             }
+    //         }
+    //
+    //         sort(list, list + attackers_count[p], attacker_comp);
+    //     }
+    // }
 
     void fill_upgradeables() {
         cint curr;
@@ -1097,54 +1238,6 @@ private:
         }
     }
 
-    pair<Opt, Opt> best_option() {
-        fint id = 0, count = options.size(), best_id = 0, simuls = 0, won = 0, res, draws = 0;
-        float best = -1.0, curr_wr;
-        Game curr;
-        struct timeval tv;
-
-        wr.resize(count, {0, 0});
-        
-        while (start_time < end_time) {
-            curr = *this;
-            curr.apply_opts(options[id]);
-            res = curr.random_game();
-
-            if (res == 1) {
-                ++wr[id].first;
-                draws++;
-            } else if (res == 2) {
-                wr[id].first += 2;
-                won++;
-            }
-
-            wr[id].second += 2;
-            simuls++;
-
-            if (++id == count) {
-                id = 0;
-            }
-
-            gettimeofday(&tv, nullptr);
-            start_time = tv.tv_sec * SEC + tv.tv_usec;
-        }
-
-
-        for (fint i = 0; i < simuls && i < count; ++i) {
-            curr_wr = static_cast<float>(wr[i].first) / static_cast<float>(wr[i].second);
-
-            if (curr_wr > best) {
-                best = curr_wr;
-                best_id = i;
-            }
-        }
-
-        cerr << "Simulated: " << simuls << " times" << '\n';
-        cerr << "W: " << won << " D: " << draws << " L: " << simuls - won - draws << endl;
-
-        return options[best_id];
-    }
-
     void random_action(fint p) {
         if (cash[p] < PLACE_COSTS[GLUE]) {
             return;
@@ -1177,44 +1270,6 @@ private:
 
                 cash[p] -= cost;
             }
-        }
-    }
-
-    fint random_game() {
-        fint opp = opponent(my_id);
-        bool first = true;
-
-        while (true) {
-            fill_upgradeables();
-
-            for (fint i = 0; i < RAND_MOVES_COUNT; ++i) {
-                if (!first) {
-                    random_action(my_id);
-                }
-
-                random_action(opp);
-            }
-            
-            first = false;
-
-            shoot_towers();
-            spawn_attackers();
-            move_attackers();
-
-            if (lives[my_id] <= 0) {
-                if (lives[opp] <= 0) {
-                    return 1;
-                }
-                // cerr << "lost! len: " << turn << endl;
-                // cerr << "cash: " << cash[opp] << " towers: " << towers_count << endl;
-                return 0;
-            } else if (lives[opp] <= 0) {
-                // cerr << "won! len: " << turn << endl;
-                // cerr << "cash: " << cash[opp] << " towers: " << towers_count << endl;
-                return 2;
-            }
-
-            turn++;
         }
     }
 
@@ -1259,233 +1314,483 @@ private:
         cout << ';';
     }
 
-    void find_write_best() {
-        fill_upgradeables();
-        generate_options();
-        pair<Opt, Opt> best = best_option();
+    void pick_map() {
+        vector<path> files;
+        path sel;
+        string line;
 
-        if (best.first.option == PASS) {
-            cout << "PASS;";
-        } else {
-            print_opt(best.first);
-            print_opt(best.second);
+        for (const auto &entry : directory_iterator(MAPS_FOLDER)) {
+            if (entry.is_regular_file()) {
+                files.push_back(entry.path());
+            }
         }
 
-        cerr << "wave:" << wave_id << endl;
-        cout << endl;
-    }
+        if (files.empty()) {
+            cerr << "no map files found in " << MAPS_FOLDER << endl;
 
-    void read_starting() {
-        fint id;
-        struct timeval tv;
+            exit(1);
+        }
 
-        cin >> my_id;
+        sel = files[rand_u32() % files.size()];
+        ifstream fin(sel);
 
-        gettimeofday(&tv, nullptr);
-        start_time = tv.tv_sec * SEC + tv.tv_usec;
-        end_time = start_time + FIRST_TIME_LIMIT;
-
-        cin >> id >> id;
-
-        id = 0;
+        if (!fin) {
+            cerr << "could not open file " << sel << endl;
+            
+            exit(1);
+        }
 
         for (fint i = 0; i < SIDE; ++i) {
-            string line;
-            cin >> line; 
+            if (!(fin >> line) || line.size() < SIDE) {
+                cerr << "file too short " << sel << endl;
+
+                exit(1);
+            }
 
             for (fint j = 0; j < SIDE; ++j) {
-                board[id++] = line[j] == '#' ? EMPTY : CANYON;
+                board[i * SIDE + j] = line[j] == '#' ? EMPTY : CANYON;
             }
         }
     }
 
-    void read_turn() {
-        fint opp = opponent(my_id), id, owner, x, y, damage, reload, cooldown, type_id;
-        fint damage_level = 0, range_level = 0, reload_level = 0, list_offset, attackers, hp, max_hp, slow_time, bounty;
-        fint real_x, real_y, dir, neigh, diff;
-        fint *dists;
-        float fx, fy, curr_speed, max_speed, range;
-        string type;
-        Attacker *list, curr;
-        struct timeval tv;
+    Opt parse_one(sv s) {
+        string cmd, a;
+        stringstream inp{string{s}};
+        fint id, type;
 
-        cin >> cash[my_id];
+        inp >> cmd;
 
-        if (turn != 0) {
-            gettimeofday(&tv, nullptr);
-            start_time = tv.tv_sec * SEC + tv.tv_usec;
-            end_time = start_time + TURN_TIME_LIMIT;
+        if (cmd.empty() || cmd == "PASS") return OPT_PASS;
+
+        if (cmd == "BUILD") {
+            fint x, y;
+
+            inp >> x >> y >> a;
+
+            if (!inp) {
+                cerr << "wrong format";
+                return OPT_PASS;
+            }
+
+            id = y * SIDE + x;
+
+            if (id < 0 || id >= MAX) {
+                cerr << "out of board" << endl;
+                return OPT_PASS;
+            }
+
+            if (a == "HEALTOWER") {
+                type = HEAL;
+            } else if (a == "FIRETOWER") {
+                type = FIRE;
+            } else if (a == "GUNTOWER") {
+                type = GUN;
+            } else if (a == "GLUETOWER") {
+                type = GLUE;
+            } else {
+                cerr << "incorrect type" << endl;
+                return OPT_PASS;
+            }
+
+            return {PLACE, id, type};
         }
 
-        cin >> lives[my_id];
+        if (cmd == "UPGRADE") {
+            inp >> id >> a;
 
-        cin >> cash[opp] >> lives[opp];
-        cin >> towers_count;
+            if (!inp) {
+                cerr << "wrong format";
+                return OPT_PASS;
+            }
 
-        for (fint i = 0; i < towers_count; ++i) {
-            cin >> type >> id >> owner >> y >> x >> damage >> range >> reload >> cooldown;
+            if (id < 0 || id >= placed_towers) {
+                cerr << "no tower with such id : " << id << endl;
+                return OPT_PASS;
+            }
 
-            if (type[0] == 'F') {
-                type_id = FIRE;
-                cooldown++;
-            } else if (type[0] == 'H') {
-                type_id = HEAL;
-            } else if (type[1] == 'U') {
-                type_id = GUN;
+            if (a == "DAMAGE") {
+                type = DAMAGE;
+            } else if (a == "RANGE") {
+                type = RANGE;
+            } else if (a == "RELOAD") {
+                type = RELOAD;
             } else {
-                type_id = GLUE;
+                cerr << "incorrect type" << endl;
+                return OPT_PASS;
             }
 
-            list_offset = type_id * LEVELS_COUNT;
-
-            for (fint j = 0; j < LEVELS_COUNT; ++j) {
-                if (DAMAGES[list_offset] == damage) {
-                    damage_level = j;
-                }
-
-                if (COOLDOWNS[list_offset] == reload) {
-                    reload_level = j;
-                }
-
-                if (COD_RANGES[list_offset] == static_cast<fint>(range * 10.0f)) {
-                    range_level = j;
-                }
-
-                list_offset++;
-            }
-
-            towers[i] = code_tower(type_id, i, x, y, owner, damage_level, range_level, reload_level, cooldown);
-            board[x * SIDE + y] = TOWER;
+            return {UPGRADE, id, type};
         }
 
-        if (towers_count > 1) sort(towers, towers + towers_count);
+        cerr << "incorrent option" << endl;
+        return OPT_PASS;
+    }
 
-        cin >> attackers;
+    vector<Opt> parse(const string &line) {
+        vector<Opt> res;
+        uint64_t start = 0, end, len;
 
-        attackers_count[ONE] = 0;
-        attackers_count[TWO] = 0;
+        while (true) {
+            end = line.find(';', start);
 
-        for (fint i = 0; i < attackers; ++i) {
-            cin >> id >> owner >> fy >> fx >> hp >> max_hp >> curr_speed >> max_speed >> slow_time >> bounty;
+            if (end == string::npos) break;
 
-            x = static_cast<fint>(fx);
-            y = static_cast<fint>(fy);
-            real_x = static_cast<fint>(fx * 10.0);
-            real_y = static_cast<fint>(fy * 10.0);
+            len = end - start;
 
-            if (owner == ONE) {
-                list = p1_attackers;
-                dists = p1_real_dists;
-            } else {
-                list = p2_attackers;
-                dists = p2_real_dists;
-            }
+            if (len) res.push_back(parse_one(sv(line.data() + start, len)));
 
-            curr.bounty = bounty;
-            curr.x = real_x;
-            curr.y = real_y;
-            curr.max_hp = max_hp;
-            curr.health = hp;
-            curr.slowed = slow_time;
-            id = x * SIDE + y;
-            curr.pos = id;
-            curr.speed = static_cast<fint>(max_speed * 10.0);
-
-            real_x %= 10;
-
-            if (real_x > 5) {
-                dir = DOWN;
-            } else if (real_x < 5) {
-                dir = UP;
-            } else {
-                real_y %= 10;
-
-                if (real_y > 5) {
-                    dir = RIGHT;
-                } else if (real_y < 5) {
-                    dir = LEFT;
-                } else {
-                    dir = -1;
-                }
-            }
-
-            curr.prev = -1;
-            curr.next = -1;
-
-            if (dir == -1) {
-                curr.progress = 5;
-            } else {
-                switch (dir) {
-                case UP:
-                    if (id < SIDE) {
-                        neigh = -1;
-                    } else {
-                        neigh = id - SIDE;
-                        diff = 10 - real_x;
-                    }
-                    break;
-                case DOWN:
-                    if (id >= MAX - SIDE) {
-                        neigh = -1;
-                    } else {
-                        neigh = id + SIDE;
-                        diff = real_x;
-                    }
-                    break;
-                case RIGHT:
-                    if (id % SIDE == SIDE - 1) {
-                        neigh = -1;
-                    } else {
-                        neigh = id + 1;
-                        diff = real_y;
-                    }
-                    break;
-                case LEFT:
-                    if (id % SIDE == 0) {
-                        neigh = -1;
-                    } else {
-                        neigh = id - 1;
-                        diff = 10 - real_y;
-                    }
-                    break;
-                }
-
-                if (neigh != -1) {
-                    if (dists[neigh] < dists[id]) {
-                        curr.progress = diff;
-                        curr.next = neigh;
-                    } else {
-                        curr.progress = 10 - diff;
-                        curr.prev = neigh;
-                    }
-                }
-            }
-
-            list[attackers_count[owner]++] = curr;
+            start = end + 1;
         }
 
-        turn++;
+        return res;
+    }
 
-        while (turn >= wave_start && turn >= FIRST_WAVE) {
-            wave_plus();
+    void apply_single(const Opt &o, fint p) {
+        if (o.option == PASS) return;
+
+        if (o.option == PLACE) {
+            if (o.type < 0 || o.type >= TYPES_COUNT) {
+                cerr << "wrong type" << endl;
+                return;
+            } else if (o.id < 0 || o.id >= MAX) {
+                cerr << "placing out of board" << endl;
+                return;
+            } else if (board[o.id] != EMPTY) {
+                cerr << "place occupied" << endl;
+                return;
+            }
+
+            fint cost = PLACE_COSTS[o.type];
+
+            if (cash[p] < cost) {
+                cerr << "insufficient funds" << endl;
+                return;
+            }
+
+            place_tower(p, o.id, o.type);
+            cash[p] -= cost;
+
+            return;
         }
+
+        if (o.option == UPGRADE) {
+            fint lvl;
+            cint c;
+
+            for (fint i = 0; i < towers_count; ++i) {
+                c = towers[i];
+
+                if (get_real_id(c) == o.id) {
+                    if (get_player(c) != p) {
+                        cerr << "not your tower" << endl;
+                        return;
+                    }
+
+                    switch(o.type) {
+                    case DAMAGE:
+                        lvl = get_l_damage(c);
+                        break;
+                    case RANGE:
+                        lvl = get_l_range(c);
+                        break;
+                    case RELOAD:
+                        lvl = get_l_reload(c);
+                        break;
+                    default:
+                        cerr << "wrong type" << endl;
+                        return;
+                    }
+
+                    if (lvl >= LEVELS_COUNT - 1) {
+                        cerr << "already upgraded" << endl;
+                        return;
+                    }
+
+                    fint cost = UPGRADE_COSTS[lvl];
+
+                    if (cash[p] < cost) {
+                        cerr << "insufficient funds" << endl;
+                        return;
+                    }
+
+                    upgrade_tower(o.id, o.type);
+                    cash[p] -= cost;
+
+                    return;
+                }
+            }
+
+            cerr << "tower not found" << endl;
+
+            return;
+        }
+
+        cerr << "wrong option" << endl;
+
+        return;
     }
 
 public:
     void init() {
-        read_starting();
+        pick_map();
         fill_starting();
         bfs_real_dists();
         fill_next_possibs();
         fill_good_tiles();
-
-        read_turn();
-        find_write_best();
     }
 
     void one_turn() {
-        read_turn();
-        find_write_best();
+        shoot_towers();
+        spawn_attackers();
+        move_attackers();
+
+        turn++;
+    }
+
+    string txt_starting(fint p) {
+        stringstream res;
+
+        res << p << '\n' << SIDE << ' ' << SIDE << '\n';
+
+        for (fint i = 0; i < SIDE; ++i) {
+            for (fint j = 0; j < SIDE; ++j) {
+                res << (board[i * SIDE + j] == EMPTY ? '#' : '.');
+            }
+
+            res << '\n';
+        }
+
+        return res.str();
+    }
+
+    string txt_turn(fint player) {
+        stringstream res;
+        fint type, id, owner, y, x, damage, reload, cooldown, id1 = 0, id2 = 0, opp = opponent(player), range;
+        string type_str;
+        float fx, fy;
+        cint c;
+        Attacker curr;
+
+        res << cash[player] << ' ' << lives[player] << '\n';
+        res << cash[opp] << ' ' << lives[opp] << '\n';
+
+        res << towers_count << '\n';
+
+        if (towers_count > 1) sort(towers, towers + towers_count, [this](const cint &a, const cint &b) {
+            return get_real_id(a) < get_real_id(b);
+        });
+
+        for (fint i = 0; i < towers_count; ++i) {
+            c = towers[i];
+
+            type = get_type(c);
+            id = get_real_id(c);
+            owner = get_player(c);
+            x = get_board_id(c) / SIDE;
+            y = get_board_id(c) % SIDE;
+            damage = DAMAGES[type * LEVELS_COUNT + get_l_damage(c)];
+            range = COD_RANGES[type * LEVELS_COUNT + get_l_range(c)];
+            reload = COOLDOWNS[type * LEVELS_COUNT + get_l_reload(c)];
+            cooldown = get_cooldown(c);
+
+            switch(type) {
+            case GUN:
+                type_str = "GUNTOWER";
+                break;
+            case GLUE:
+                type_str = "GLUETOWER";
+                break;
+            case HEAL:
+                type_str = "HEALTOWER";
+                break;
+            case FIRE:
+                type_str = "FIRETOWER";
+                break;
+            }
+
+            res << type_str << ' ' << id << ' ' << owner << ' '<< y << ' ' << x << ' ' << damage << ' ' << range / 10 << '.' << range % 10 << ' ' << reload << ' ' << cooldown << '\n';
+        }
+
+        if (towers_count > 1) sort(towers, towers + towers_count);
+
+        res << attackers_count[ONE] + attackers_count[TWO] << '\n';
+
+        while (true) {
+            if (id2 == attackers_count[TWO] || (id1 < attackers_count[ONE] && p1_with_p2_attacker_comp(p1_attackers[id1], p2_attackers[id2]))) {
+                if (id1 == attackers_count[ONE]) {
+                    break;
+                }
+
+                curr = p1_attackers[id1++];
+                id = id1;
+                owner = ONE;
+            } else {
+                curr = p2_attackers[id2++];
+                id = id2;
+                owner = TWO;
+            }
+
+            fx = static_cast<float>(curr.x) / 100.0f;
+            fy = static_cast<float>(curr.y) / 100.0f;
+
+            res << id << ' ' << owner << ' ' << fy << ' ' << fx << ' ' << curr.health << ' ' << curr.max_hp << ' ' << static_cast<float>((curr.slowed > 0 ? curr.speed / SLOW_MULTIPLIER : curr.speed)) / 10.0 << ' ' << static_cast<float>(curr.speed) / 10.0 << ' ' << curr.slowed << ' ' << curr.bounty << '\n';
+        }
+
+        return res.str();
+    }
+
+    fint get_turn() {
+        return turn;
+    }
+
+    bool finished() {
+        return lives[ONE] <= 0 || lives[TWO] <= 0;
+    }
+
+    fint get_winner() {
+        if (lives[ONE] <= 0) {
+            if (lives[TWO] <= 0) {
+                return -1;
+            }
+
+            return TWO;
+        }
+
+        return ONE;
+    }
+
+    void pretty_print() {
+        fint p1_counts[MAX] = {0}, p2_counts[MAX] = {0}, owners[MAX] = {0};
+        fint pos, p1_closest = MAX, p2_closest = MAX, max_dist;
+        fint *clist, *dists_list, *best;
+        Attacker *list;
+
+        for (fint p = ONE; p <= TWO; ++p) {
+            if (p == ONE) {
+                list = p1_attackers;
+                clist = p1_counts;
+                dists_list = p1_real_dists;
+                best = &p1_closest;
+            } else {
+                list = p2_attackers;
+                clist = p2_counts;
+                dists_list = p2_real_dists;
+                best = &p2_closest;
+            }
+
+            for (fint i = 0; i < attackers_count[p]; ++i) {
+                pos = list[i].pos;
+
+                clist[pos]++;
+
+                if (dists_list[pos] < *best) {
+                    *best = dists_list[pos];
+                }
+            }
+        }
+
+        for (fint i = 0; i < towers_count; ++i) {
+            owners[get_board_id(towers[i])] = get_player(towers[i]);
+        }
+        
+        for (fint i = 0; i < SIDE; ++i) {
+            for (fint r = 0; r < 3; ++r) {
+                cout << ANSI_CLEAR;
+
+                if (r == 1) {
+                    cout << setw(2) << i << "   ";
+                } else {
+                    cout << "     ";
+                }
+
+                for (fint j = 0; j < SIDE; ++j) {
+                    pos = i * SIDE + j;
+
+                    if (board[pos] == CANYON) {
+                        if (r == 1) {
+                            if (p1_counts[pos] == 0) {
+                                cout << ANSI_YELLOW << '.';
+                            } else {
+                                cout << ANSI_CYAN << (p1_counts[pos] > 9 ? '+' : p1_counts[pos]);
+                            }
+
+                            cout << ANSI_YELLOW << '.';
+
+                            if (p2_counts[pos] == 0) {
+                                cout << ANSI_YELLOW << '.';
+                            } else {
+                                cout << ANSI_MAGENTA << (p2_counts[pos] > 9 ? '+' : p2_counts[pos]);
+                            }
+                        } else {
+                            cout << ANSI_YELLOW << "...";
+                        }
+                    } else if (board[pos] == TOWER) {
+                        cout << (owners[pos] == ONE ? ANSI_BLUE : ANSI_RED);
+
+                        if (r == 1) {
+                            cout << "*󰚁*";
+                        } else {
+                            cout << "***";
+                        }
+                    } else {
+                        cout << ANSI_CLEAR << "###";
+                    }
+
+                    cout << ' ';
+                }
+
+                cout << '\n';
+            }
+        }
+
+        cout << ANSI_BLUE << "\nP1:\nCASH: $" << cash[ONE] << "\nLIVES: " << lives[ONE] << "\nPROGRESS: ";
+
+        max_dist = p1_real_dists[p1_bases[0]];
+
+        for (fint i = 0; i < max_dist; ++i) {
+            cout << (i <= max_dist - p1_closest ? '#' : '-');
+        }
+
+        cout << ANSI_RED << "\nP2:\nCASH: $" << cash[TWO] << "\nLIVES: " << lives[TWO] << "\nPROGRESS: ";
+
+        max_dist = p2_real_dists[p2_bases[0]];
+
+        for (fint i = 0; i < max_dist; ++i) {
+            cout << (i <= max_dist - p2_closest ? '#' : '-');
+        }
+        cout << wave_id << endl;
+
+        cout << ANSI_CLEAR << endl;
+    }
+
+    void apply(string cmd0, string cmd1) {
+        placed_towers = towers_count;
+
+        vector<Opt> v0 = parse(cmd0);
+        vector<Opt> v1 = parse(cmd1);
+        Opt opt0, opt1;
+        fint max_opts = max(v0.size(), v1.size());
+
+        for (fint i = 0; i < max_opts; ++i) {
+            opt0 = (i < static_cast<fint>(v0.size()) ? v0[i] : OPT_PASS);
+            opt1 = (i < static_cast<fint>(v1.size()) ? v1[i] : OPT_PASS);
+
+            if (opt0.option == PLACE && opt1.option == PLACE && opt0.id == opt1.id) {
+                if (belongs[opt0.id] == ONE) {
+                    apply_single(opt0, ONE);
+                } else {
+                    apply_single(opt1, TWO);
+                }
+            } else {
+                apply_single(opt0, ONE);
+                apply_single(opt1, TWO);
+            }
+        }
+
+        if (towers_count > 1) sort(towers, towers + towers_count);
+
+        cout << "P1: " << cmd0;
+        cout << "P2: " << cmd1 << endl;
     }
 };
 
@@ -1518,14 +1823,91 @@ fint Game::p1_pcounts[MAX];
 fint Game::p2_pcounts[MAX];
 fint Game::p1_real_dists[MAX];
 fint Game::p2_real_dists[MAX];
+fint Game::placed_towers;
 
-int main() {
+int main(int argc, char* argv[]) {
+    if (argc != 3) {
+        cerr << "usage: referee bot1 bot2" << endl;
+
+        return 1;
+    }
+
+    BotIO bots[2];
+    pid_t pids[2];
     Game game;
+    string str;
+    string cmd0, cmd1;
+    bool reversed = rand_u32() & 1;
+    fint winner_id, timeout;
+
     game.init();
 
-    while (true) {
-        game.one_turn();
+    pids[0] = spawn_bot(argv[1], bots[0].stdio, bots[0].err_fd);
+    pids[1] = spawn_bot(argv[2], bots[1].stdio, bots[1].err_fd);
+
+    cmd0 = game.txt_starting(ONE);
+    cmd1 = game.txt_starting(TWO);
+
+    if (reversed) {
+        swap(cmd0, cmd1);
     }
+
+    send(bots[0].stdio.in[1], cmd0);
+    send(bots[1].stdio.in[1], cmd1);
+
+    while (!game.finished()) {
+        cout << ANSI_BG_GREEN << "----- TURN #" << game.get_turn() << " -----\n" << ANSI_CLEAR << endl;
+
+        cmd0 = game.txt_turn(ONE);
+        cmd1 = game.txt_turn(TWO);
+
+        if (reversed) {
+            swap(cmd0, cmd1);
+        }
+
+        timeout = game.get_turn() == 0 ? FIRST_TIME_LIMIT : TURN_TIME_LIMIT;
+
+        send(bots[0].stdio.in[1], cmd0);
+        send(bots[1].stdio.in[1], cmd1);
+
+        cmd0 = receive(bots[0].stdio.out[0], timeout);
+        cmd1 = receive(bots[1].stdio.out[0], timeout);
+
+        if (reversed) {
+            swap(cmd0, cmd1);
+        }
+
+        print_err(bots[reversed ? 1 : 0].err_fd, "[BOT P0] ");
+        print_err(bots[reversed ? 0 : 1].err_fd, "[BOT P1] ");
+
+        game.apply(cmd0, cmd1);
+
+        game.one_turn();
+
+        game.pretty_print();
+        cout << "\n\n\n";
+    }
+
+    winner_id = game.get_winner();
+
+    if (winner_id == -1) {
+        cout << ANSI_BG_GREEN << "DRAW";
+    } else {
+        cout << "WINNER: ";
+
+        if (winner_id == ONE) {
+            cout << ANSI_BG_BLUE << "P0 - ";
+            cout << (reversed ? argv[2] : argv[1]);
+        } else {
+            cout << ANSI_BG_RED << "P1 - ";
+            cout << (reversed ? argv[1] : argv[2]);
+        }
+    }
+
+    cout << ANSI_CLEAR << " !!!\n" << endl;
+
+    kill(pids[0], SIGTERM);
+    kill(pids[1], SIGTERM);
 
     return 0;
 }
