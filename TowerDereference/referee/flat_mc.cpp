@@ -14,8 +14,9 @@ using cint = uint64_t; // TOWER CODE INT
 using pff = pair<fint, fint>;
 
 // MAP
-constexpr fint SIDE = 17;
-constexpr fint MAX = SIDE * SIDE;
+constexpr fint HEIGHT = 17;
+constexpr fint WIDTH = 19;
+constexpr fint MAX = HEIGHT * WIDTH;
 constexpr fint MIN_LEN = 30;
 constexpr fint MAX_LEN = 40;
 constexpr fint MAX_PATHS_COUNT = 30;
@@ -95,12 +96,52 @@ constexpr fint WAVE_HPS[WAVES] = { 5,  8, 12,  8, 12, 15, 15, 18,  18 };
 constexpr fint WAVE_SPEEDS[WAVES] = { 10, 12, 10, 15, 10, 10, 12, 13,  14 };
 constexpr fint WAVE_BOUNTIES[WAVES] = { 25, 30, 30, 20, 22, 25, 25, 30,  30 };
 
-
 // SIMULATION STATS
 constexpr fint SEC = 1'000'000;
 constexpr fint FIRST_TIME_LIMIT = 999'900;
 constexpr fint TURN_TIME_LIMIT = 49'900;
 constexpr fint RAND_MOVES_COUNT = 4;
+
+// MISC
+constexpr fint X_OF[MAX] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+    10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,
+    11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,
+    12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,
+    13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,
+    14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,
+    15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,
+    16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+};
+
+constexpr fint Y_OF[MAX] = {
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+};
 
 enum Player { ONE, TWO };
 enum Cell { EMPTY, CANYON, TOWER };
@@ -120,6 +161,11 @@ struct Attacker {
     fint y;
     fint slowed;
     fint bounty;
+};
+
+struct Future {
+    fint p;
+    Attacker a;
 };
 
 struct BFS_Elem {
@@ -161,7 +207,7 @@ private:
     static fint p1_path_len, p2_path_len;
     static fint my_id;
     static fint bases_count;
-    static fint p1_bases[SIDE], p2_bases[SIDE];
+    static fint p1_bases[2], p2_bases[2];
     static vector<pair<Opt, Opt>> options;
     static vector<pff> wr;
     static fint good_tiles[MAX];
@@ -169,6 +215,8 @@ private:
     static Upgradeable p1_upgradeables[MAX * POSSIBS_COUNT], p2_upgradeables[MAX * POSSIBS_COUNT];
     static fint p1_upgradeable_count, p2_upgradeable_count;
     static fint start_time, end_time;
+    static fint max_id_prev;
+    static fint max_id_curr;
     fint board[MAX];
     cint towers[MAX];
     fint towers_count;
@@ -185,6 +233,9 @@ private:
     fint wave_hp;
     fint wave_speed;
     fint wave_bounty;
+    fint spawning_left;
+    bool started;
+    vector<vector<Future>> future_attackers;
 
     fint opponent(fint player) {
         return player ^ 1;
@@ -199,7 +250,7 @@ private:
         c |= l_ran << L_RANGE_SHIFT;
         c |= l_dmg << L_DAMAGE_SHIFT;
         c |= player << PLAYER_SHIFT;
-        c |= (x * SIDE + y) << BOARD_ID_SHIFT;
+        c |= (x * WIDTH + y) << BOARD_ID_SHIFT;
         c |= id << REAL_ID_SHIFT;
         c |= (player == ONE ? p1_dists : p2_dists)[id];
 
@@ -227,65 +278,10 @@ private:
 
     pff get_tower_coords(cint tower) {
         fint id = get_board_id(tower);
-        fint x = id / SIDE, y = id % SIDE;
+        fint x = X_OF[id], y = Y_OF[id];
 
         return {x * 100 + 50, y * 100 + 50};
     }
-
-    // void bfs_paths() {
-    //     queue<BFS_Elem> q;
-    //     fint prev[MAX];
-    //     BFS_Elem curr;
-    //     fint next;
-    //     fint *list;
-    //
-    //     for (fint p = ONE; p <= TWO; ++p) {
-    //         q = queue<BFS_Elem>();
-    //         q.emplace(BFS_Elem{p == ONE ? bases[ONE] : bases[TWO], -1});
-    //
-    //         for (int i = 0; i < MAX; ++i) {
-    //             prev[i] = 0;
-    //         }
-    //
-    //         while (!q.empty()) {
-    //             curr = q.front();
-    //             q.pop();
-    //
-    //             if (prev[curr.id] != 0) continue;
-    //
-    //             prev[curr.id] = curr.prev;
-    //
-    //             if (curr.id == bases[opponent(p)]) {
-    //                 cout << "yes\n";
-    //                 break;
-    //             }
-    //
-    //             for (fint i = 0; i < DIRS; ++i) {
-    //                 next = curr.id + DX[i] * SIDE + DY[i];
-    //
-    //                 if ((next < SIDE || next >= SIDE * (SIDE - 1) || next % SIDE == 0 || next % SIDE == SIDE - 1) && next != bases[opponent(p)]) continue;
-    //
-    //                 q.emplace(BFS_Elem{next, curr.id});
-    //             }
-    //         }
-    //
-    //         next = curr.id;
-    //         path_lens[p] = 0;
-    //
-    //         if (p == ONE) {
-    //             list = p1_path;
-    //         } else {
-    //             list = p2_path;
-    //         }
-    //
-    //         while (next != -1) {
-    //             list[path_lens[p]++] = next;
-    //             next = prev[next];
-    //         }
-    //
-    //         reverse(list, list + path_lens[p]);
-    //     }
-    // }
 
     static bool p1_attacker_comp(const Attacker &a, const Attacker &b) {
         return p1_real_dists[a.pos] * 10 - a.progress < p1_real_dists[b.pos] * 10 - b.progress;
@@ -296,11 +292,11 @@ private:
     }
 
     static bool p1_with_p2_attacker_comp(const Attacker &a, const Attacker &b) {
-        return p1_real_dists[a.pos] * 10 - a.progress < p2_real_dists[b.pos] - b.progress;
+        return p1_real_dists[a.pos] * 10 - a.progress < p2_real_dists[b.pos] * 10 - b.progress;
     }
 
     bool out_of_bounds(fint d, fint id) {
-        return (d == UP && id / SIDE == 0) || (d == DOWN && id / SIDE == SIDE - 1) || (d == LEFT && id % SIDE == 0) || (d == RIGHT && id % SIDE == SIDE - 1);
+        return (d == UP && X_OF[id] == 0) || (d == DOWN && X_OF[id] == HEIGHT - 1) || (d == LEFT && Y_OF[id] == 0) || (d == RIGHT && Y_OF[id] == WIDTH - 1);
     }
 
     void fill_next_possibs() {
@@ -322,7 +318,7 @@ private:
                 if (board[i] != CANYON) continue;
 
                 for (fint d = 0; d < DIRS; ++d) {
-                    next = i + DX[d] * SIDE + DY[d];
+                    next = i + DX[d] * WIDTH + DY[d];
                     
                     if (out_of_bounds(d, i)) continue;
                     if (board[next] == CANYON && dists[next] < dists[i]) {
@@ -332,14 +328,30 @@ private:
             }
         }
 
+        for (fint i = 0; i < HEIGHT; ++i) {
+            p2_pcounts[i * WIDTH] = 0;
+            p1_pcounts[i * WIDTH + WIDTH - 1] = 0;
+        }
+
+        cerr << p1_pcounts[p2_bases[0] - 1] << p1_pcounts[p2_bases[1] - 1] << endl;
+        cerr << p2_pcounts[p1_bases[0] + 1] << p2_pcounts[p1_bases[1] + 1] << endl;
+
         options.push_back({OPT_PASS, OPT_PASS});
 
-        // for (fint i = 0; i < SIDE; ++i) {
-        //     for (fint j = 0; j < SIDE; ++j) {
-        //         cout << p1_pcounts[i * SIDE + j] << ' ';
+        // for (fint i = 0; i < HEIGHT; ++i) {
+        //     for (fint j = 0; j < WIDTH; ++j) {
+        //         cerr << p1_pcounts[i * WIDTH + j] << ' ';
         //     }
         //
-        //     cout << endl;
+        //     cerr << endl << endl;
+        // }
+        //
+        // for (fint i = 0; i < HEIGHT; ++i) {
+        //     for (fint j = 0; j < WIDTH; ++j) {
+        //         cerr << p2_pcounts[i * WIDTH + j] << ' ';
+        //     }
+        //
+        //     cerr << endl;
         // }
     }
 
@@ -347,6 +359,8 @@ private:
         fint next;
 
         for (fint i = 0; i < MAX; ++i) {
+            if (Y_OF[i] == 0 || Y_OF[i] == WIDTH - 1) continue;
+
             if (board[i] != EMPTY) {
                 // cout << " . ";
                 // if (i % SIDE == SIDE-  1) cout << endl;
@@ -355,9 +369,10 @@ private:
             }
 
             for (fint d = 0; d < DIRS; ++d) {
-                next = i + DX[d] * SIDE + DY[d];
+                next = i + DX[d] * WIDTH + DY[d];
                 
                 if (out_of_bounds(d, i)) continue;
+                if (Y_OF[next] == 0 || Y_OF[next] == WIDTH - 1) continue;
                 if (board[next] == EMPTY) continue;
 
                 good_tiles[good_tiles_count++] = i;
@@ -382,20 +397,20 @@ private:
             curr_bases_count = 0;
 
             if (p == ONE) {
-                id = 0;
+                id = 1;
                 bases = p1_bases;
             } else {
-                id = SIDE - 1;
+                id = WIDTH - 2;
                 bases = p2_bases;
             }
 
             
-            for (fint i = 0; i < SIDE; ++i) {
+            for (fint i = 0; i < HEIGHT; ++i) {
                 if (board[id] == CANYON) {
-                    bases[curr_bases_count++] = id;
+                    bases[curr_bases_count++] = id + (p == ONE ? -1 : 1);
                 }
 
-                id += SIDE;
+                id += WIDTH;
             }
 
             bases_count = curr_bases_count;
@@ -429,7 +444,7 @@ private:
                 list[id] = curr.second;
 
                 for (fint d = 0; d < DIRS; ++d) {
-                    next = curr.first + DX[d] * SIDE + DY[d];
+                    next = curr.first + DX[d] * WIDTH + DY[d];
                     
                     if (out_of_bounds(d, id)) continue;
                     if (board[next] == EMPTY) continue;
@@ -439,6 +454,9 @@ private:
             }
 
         }
+
+        p1_path_len = p1_real_dists[p1_bases[0]];
+        p2_path_len = p2_real_dists[p2_bases[0]];
 
         // for (fint i = 0; i < SIDE; ++i) {
         //     for (fint j = 0; j < SIDE; ++j) {
@@ -511,61 +529,18 @@ private:
     fint get_cooldown(cint c) {
         return c & COOLDOWN_MASK;
     }
-    
-    fint dfs_canyon(fint curr, fint end, fint curr_len, fint dists[MAX],  fint path[MAX_LEN], fint res[MAX_LEN]) {
-        fint new_path[MAX_LEN];
-        fint next, new_len;
-        fint dir[DIRS] = {0, 1, 2, 3};
-
-        copy(path, path + curr_len, new_path);
-        new_path[curr_len++] = curr;
-
-        if (curr == end) {
-            copy(new_path, new_path + curr_len, res);
-
-            return curr_len;
-        }
-
-        for (fint i = 0; i < DIRS; ++i) {
-            next = rand_u32() % DIRS;
-            swap(dir[i], dir[next]);
-        }
-
-        for (fint i = 0; i < DIRS; ++i) {
-            next = dir[i];
-            next = curr + DX[next] * SIDE + DY[next];
-            
-            if ((next < SIDE || next >= SIDE * (SIDE - 1) || next % SIDE == 0 || next % SIDE == SIDE - 1) && next != end) continue;
-
-            if (p2_dists[curr] != -1 && p2_dists[curr] + curr_len < MAX_LEN) {
-                new_len = dfs_canyon(next, end, curr_len, dists, new_path, res);
-
-                if (new_len) {
-                    return new_len;
-                }
-            }
-        }
-
-        return 0;
-    }
 
     void fill_starting() {
-        fint curr = 0, p2;
+        fint x, y;
 
         for (fint i = 0; i < MAX; ++i) {
-            p2 = SIDE - curr - 1;
-            p1_dists[i] = curr;
-            p2_dists[i] = p2;
+            x = X_OF[i];
+            y = Y_OF[i];
 
-            if (curr < p2) {
-                belongs[i] = ONE;
-            } else if (curr > p2) {
-                belongs[i] = TWO;
-            } else {
-                belongs[i] = i / SIDE < 8 ? ONE : TWO;
-            }
+            p1_dists[i] = y;
+            p2_dists[i] = WIDTH - 1 - y;
 
-            curr = (curr + 1) % SIDE;
+            belongs[i] = (y < 9 ? ONE : (y > 9 ? TWO : (x < 8 ? ONE : TWO)));
         }
 
         lives[ONE] = START_LIVES;
@@ -582,25 +557,29 @@ private:
         wave_bounty = WAVE_BOUNTIES[0];
         attackers_count[ONE] = 0;
         attackers_count[TWO] = 0;
+        future_attackers.assign(250, {});
+        max_id_prev = -1;
+        max_id_curr = -1;
+        spawning_left = WAVE_TIME;
     }
 
-    void print_statics() {
-        for (fint i = 0; i < MAX; ++i) {
-            cout << setw(2) << p1_dists[i] << (i % SIDE == SIDE - 1 ? '\n' : ' ');
-        }
-
-        cout << '\n';
-
-        for (fint i = 0; i < MAX; ++i) {
-            cout << belongs[i] << (i % SIDE == SIDE - 1 ? '\n' : ' ');
-        }
-
-        cout << '\n';
-    }
-
+    // void print_statics() {
+    //     for (fint i = 0; i < MAX; ++i) {
+    //         cout << setw(2) << p1_dists[i] << (i % SIDE == SIDE - 1 ? '\n' : ' ');
+    //     }
+    //
+    //     cout << '\n';
+    //
+    //     for (fint i = 0; i < MAX; ++i) {
+    //         cout << belongs[i] << (i % SIDE == SIDE - 1 ? '\n' : ' ');
+    //     }
+    //
+    //     cout << '\n';
+    // }
+    //
     void print_board() {
         for (fint i = 0; i < MAX; ++i) {
-            cout << board[i] << (i % SIDE == SIDE - 1 ? '\n' : ' ');
+            cout << board[i] << (Y_OF[i] == WIDTH - 1 ? '\n' : ' ');
         }
     }
 
@@ -738,101 +717,201 @@ private:
             wave_bounty = WAVE_BOUNTIES[wave_id];
             wave_start = WAVE_STARTS[wave_id];
         }
+
+        spawning_left = WAVE_TIME;
+        started = false;
+    }
+
+    bool can_create() {
+        if (started) return false;
+
+        if (turn >= wave_start) return true;
+        
+        fint id, prog;
+
+        for (fint p = ONE; p <= TWO; ++p) {
+            if (attackers_count[p] == 0) continue;
+
+            id = (p == ONE ? p1_attackers : p2_attackers)[attackers_count[p] - 1].pos;
+            prog = (p == ONE ? p1_attackers : p2_attackers)[attackers_count[p] - 1].progress;
+
+            if (((p == ONE ? p1_real_dists[id] : p2_real_dists[id]) * TILE_SIZE + TILE_SIZE - prog) * 3 > (p == ONE ? p1_path_len : p2_path_len) * TILE_SIZE * 2) return false;
+        }
+
+        return true;
+    }
+
+    Attacker make_attacker(fint p) {
+        Attacker a;
+
+        a.progress = rand_u32() % 10;
+        a.pos = (p == ONE ? p1_bases : p2_bases)[bases_count == 1 ? 0 : rand_u32() & 1];
+
+        if (a.progress == 0) {
+            if (p == ONE) {
+                ++a.pos;
+            } else {
+                --a.pos;
+            }
+        }
+
+        a.health = wave_hp;
+        a.max_hp = wave_hp;
+        a.speed = wave_speed;
+        a.bounty = wave_bounty;
+        a.slowed = 0;
+        a.prev = -1;
+        a.next = -1;
+        a.x = X_OF[a.pos] * 100 + 50;
+        a.y = Y_OF[a.pos] * 100;
+
+        if (p == ONE) {
+            a.y += a.progress * 10;
+        } else {
+            a.y -= a.progress * 10;
+        }
+
+        return a;
+    }
+
+    void create_attackers() {
+        fint del;
+
+        for (fint i = 0; i < wave_count; ++i) {
+            del = turn + (rand_u32() % WAVE_TIME);
+            future_attackers[del].push_back({ONE, make_attacker(ONE)});
+            future_attackers[del].push_back({TWO, make_attacker(TWO)});
+        }
+
+        started = true;
     }
 
     void spawn_attackers() {
-        if (turn < wave_start || turn < FIRST_WAVE) {
-            return;
-        }
+        if (can_create()) create_attackers();
 
-        Attacker *list, curr;
-        fint *bases, *possibs, *pcounts;
-        fint neigh_x, neigh_y, diff;
-
-        for (fint p = ONE; p <= TWO; ++p) {
-            if (p == ONE) {
-                list = p1_attackers;
-                bases = p1_bases;
-                possibs = p1_possibs;
-                pcounts = p1_pcounts;
+        for (Future &f : future_attackers[turn]) {
+            if (f.p == ONE) {
+                p1_attackers[attackers_count[ONE]++] = f.a;
             } else {
-                list = p2_attackers;
-                bases = p2_bases;
-                possibs = p2_possibs;
-                pcounts = p2_pcounts;
+                p2_attackers[attackers_count[TWO]++] = f.a;
             }
-
-            for (fint i = 0; i < wave_count; ++i) {
-                curr.progress = rand_u32() % 10;
-                curr.pos = bases[bases_count == 1 ? 0 : rand_u32() % bases_count];
-                curr.health = wave_hp;
-                curr.max_hp = wave_hp;
-                curr.speed = wave_speed;
-                curr.x = (curr.pos / 10) * 100 + 50;
-                curr.y = (curr.pos % 10) * 100 + 50;
-                curr.bounty = wave_bounty;
-                curr.slowed = 0;
-                curr.prev = -1;
-
-                if (curr.progress > 5) {
-                    curr.next = possibs[curr.pos * POSSIBS_COUNT + (pcounts[curr.pos] == 1 ? 0 : rand_u32() % pcounts[curr.pos])];
-                    neigh_x = curr.next / SIDE;
-                    neigh_y = curr.next % SIDE;
-                    diff = curr.progress - 5;
-
-                    if (neigh_x == curr.x + 1) {
-                        // DOWN
-                        curr.x += diff * 10;
-                    } else if (neigh_x == curr.x - 1) {
-                        // UP
-                        curr.x -= diff * 10;
-                    } else if (neigh_y == curr.y + 1) {
-                        // RIGHT
-                        curr.y += diff * 10;
-                    } else {
-                        // LEFT
-                        curr.y -= diff * 10;
-                    }
-                } else {
-                    curr.next = -1;
-                    diff = 5 - curr.progress;
-
-                    if (p == ONE) {
-                        // RIGHT
-                        curr.y += diff * 10;
-                    } else {
-                        // LEFT
-                        curr.y -= diff * 10;
-                    }
-                }
-
-                if (attackers_count[p] >= ATTACKERS_BUFFOR - 1) {
-                    cerr << "OUT OF BUFFOR ATTACKERS" << endl;
-                    exit(1);
-                }
-
-                list[attackers_count[p]++] = curr;
-            }
-
-            if (attackers_count[p] > 1) sort(list, list + attackers_count[p], p == ONE ? p1_attacker_comp : p2_attacker_comp);
         }
 
-        // Attacker *list;
-        // Attacker stats = get_stats();
-        // fint count = get_count();
-        //
-        // for (fint p = ONE; p <= TWO; ++p) {
-        //     list = p == ONE ? p1_attackers : p2_attackers;
-        //
-        //     for (fint c = 0; c < count; ++c) {
-        //         list[attackers_count[p]++] = stats;
-        //         list[attackers_count[p]].path_id = rand_u32() % (p == ONE ? p1_paths_count : p2_paths_count);
-        //         list[attackers_count[p]].pos = (p == ONE ? p1_paths : p2_paths)[0];
-        //     }
-        // }
+        if (started) {
+            if (--spawning_left == 0) wave_plus();
+        }
 
-        wave_plus();
+        future_attackers[turn].clear();
     }
+
+    void update_futures() {
+        fint del;
+
+        for (fint t = turn; t < turn + spawning_left; ++t) {
+            future_attackers[t].clear();
+        }
+
+        for (fint i = 0; i < wave_count; ++i) {
+            del = turn + (rand_u32() % spawning_left);
+            future_attackers[del].push_back({ONE, make_attacker(ONE)});
+            future_attackers[del].push_back({TWO, make_attacker(TWO)});
+        }
+    }
+
+
+    // void spawn_attackers() {
+    //     if (turn < wave_start || turn < FIRST_WAVE) {
+    //         return;
+    //     }
+    //
+    //     Attacker *list, curr;
+    //     fint *bases, *possibs, *pcounts;
+    //     fint neigh_x, neigh_y, diff;
+    //
+    //     for (fint p = ONE; p <= TWO; ++p) {
+    //         if (p == ONE) {
+    //             list = p1_attackers;
+    //             bases = p1_bases;
+    //             possibs = p1_possibs;
+    //             pcounts = p1_pcounts;
+    //         } else {
+    //             list = p2_attackers;
+    //             bases = p2_bases;
+    //             possibs = p2_possibs;
+    //             pcounts = p2_pcounts;
+    //         }
+    //
+    //         for (fint i = 0; i < wave_count; ++i) {
+    //             curr.progress = rand_u32() % 10;
+    //             curr.pos = bases[bases_count == 1 ? 0 : rand_u32() % bases_count];
+    //             curr.health = wave_hp;
+    //             curr.max_hp = wave_hp;
+    //             curr.speed = wave_speed;
+    //             curr.x = (curr.pos / 10) * 100 + 50;
+    //             curr.y = (curr.pos % 10) * 100 + 50;
+    //             curr.bounty = wave_bounty;
+    //             curr.slowed = 0;
+    //             curr.prev = -1;
+    //
+    //             if (curr.progress > 5) {
+    //                 curr.next = possibs[curr.pos * POSSIBS_COUNT + (pcounts[curr.pos] == 1 ? 0 : rand_u32() % pcounts[curr.pos])];
+    //                 neigh_x = curr.next / SIDE;
+    //                 neigh_y = curr.next % SIDE;
+    //                 diff = curr.progress - 5;
+    //
+    //                 if (neigh_x == curr.x + 1) {
+    //                     // DOWN
+    //                     curr.x += diff * 10;
+    //                 } else if (neigh_x == curr.x - 1) {
+    //                     // UP
+    //                     curr.x -= diff * 10;
+    //                 } else if (neigh_y == curr.y + 1) {
+    //                     // RIGHT
+    //                     curr.y += diff * 10;
+    //                 } else {
+    //                     // LEFT
+    //                     curr.y -= diff * 10;
+    //                 }
+    //             } else {
+    //                 curr.next = -1;
+    //                 diff = 5 - curr.progress;
+    //
+    //                 if (p == ONE) {
+    //                     // RIGHT
+    //                     curr.y += diff * 10;
+    //                 } else {
+    //                     // LEFT
+    //                     curr.y -= diff * 10;
+    //                 }
+    //             }
+    //
+    //             if (attackers_count[p] >= ATTACKERS_BUFFOR - 1) {
+    //                 cerr << "OUT OF BUFFOR ATTACKERS" << endl;
+    //                 exit(1);
+    //             }
+    //
+    //             list[attackers_count[p]++] = curr;
+    //         }
+    //
+    //         if (attackers_count[p] > 1) sort(list, list + attackers_count[p], p == ONE ? p1_attacker_comp : p2_attacker_comp);
+    //     }
+    //
+    //     // Attacker *list;
+    //     // Attacker stats = get_stats();
+    //     // fint count = get_count();
+    //     //
+    //     // for (fint p = ONE; p <= TWO; ++p) {
+    //     //     list = p == ONE ? p1_attackers : p2_attackers;
+    //     //
+    //     //     for (fint c = 0; c < count; ++c) {
+    //     //         list[attackers_count[p]++] = stats;
+    //     //         list[attackers_count[p]].path_id = rand_u32() % (p == ONE ? p1_paths_count : p2_paths_count);
+    //     //         list[attackers_count[p]].pos = (p == ONE ? p1_paths : p2_paths)[0];
+    //     //     }
+    //     // }
+    //
+    //     wave_plus();
+    // }
 
     void move_attackers() {
         Attacker *list;
@@ -878,23 +957,22 @@ private:
             while (progress + to_move >= TILE_SIZE) {
                 count = counts_list[id];
 
-                if (count > 0) {
-                    list[i].prev = id;
+                list[i].prev = id;
 
-                    if (list[i].next != -1) {
-                        id = list[i].next;
-                        list[i].next = -1;
-                    } else {
-                        id = possibs_list[id * POSSIBS_COUNT + rand_u32() % count];
-                    }
-
-                    list[i].pos = id;
-                    to_move -= TILE_SIZE - progress;
-                    progress = 0;
+                if (list[i].next != -1) {
+                    id = list[i].next;
+                    list[i].next = -1;
                 } else {
+                    id = possibs_list[id * POSSIBS_COUNT + rand_u32() % count];
+                }
+
+                list[i].pos = id;
+                to_move -= TILE_SIZE - progress;
+                progress = 0;
+
+                if ((Y_OF[id] == 0 && p == TWO) || (Y_OF[id] == WIDTH - 1 && p == ONE)) {
                     remove_attacker(p, i);
                     removed = true;
-
                     break;
                 }
             }
@@ -917,8 +995,8 @@ private:
 
             list[i].progress = progress;
 
-            x = id / SIDE;
-            y = id % SIDE;
+            x = X_OF[id]; 
+            y = Y_OF[id];
 
             if (progress >= 5) {
                 count = counts_list[id];
@@ -928,21 +1006,21 @@ private:
                         list[i].next = possibs_list[id * POSSIBS_COUNT + rand_u32() % count];
                     }
 
-                    neigh_x = list[i].next / SIDE;
-                    neigh_y = list[i].next % SIDE;
+                    neigh_x = X_OF[list[i].next];
+                    neigh_y = Y_OF[list[i].next];
                 } else {
-                    neigh_x = id / SIDE;
-                    neigh_y = p == ONE ? SIDE : -1;
+                    neigh_x = X_OF[id];
+                    neigh_y = p == ONE ? WIDTH - 1: 0;
                 }
 
                 diff = progress - 5;
             } else {
                 if (list[i].prev == -1) {
                     neigh_x = x;
-                    neigh_y = p == ONE ? -1 : SIDE;
+                    neigh_y = p == ONE ? 0 : WIDTH - 1;
                 } else {
-                    neigh_x = list[i].prev / SIDE;
-                    neigh_y = list[i].prev % SIDE;
+                    neigh_x = X_OF[list[i].prev];
+                    neigh_y = Y_OF[list[i].prev];
                 }
 
                 diff = 5 - progress;
@@ -1198,7 +1276,6 @@ private:
             first = false;
 
             shoot_towers();
-            spawn_attackers();
             move_attackers();
 
             if (lives[my_id] <= 0) {
@@ -1214,6 +1291,8 @@ private:
                 return 2;
             }
 
+            spawn_attackers();
+
             turn++;
         }
     }
@@ -1224,7 +1303,7 @@ private:
         }
 
         if (o.option == PLACE) {
-            cout << "BUILD " << o.id % SIDE << ' ' << o.id / SIDE << ' ';
+            cout << "BUILD " << Y_OF[o.id] - 1 << ' ' << X_OF[o.id] << ' ';
 
             switch (o.type) {
             case GUN:
@@ -1287,22 +1366,28 @@ private:
 
         cin >> id >> id;
 
-        id = 0;
-
-        for (fint i = 0; i < SIDE; ++i) {
+        for (fint i = 0; i < HEIGHT; ++i) {
             string line;
             cin >> line; 
 
-            for (fint j = 0; j < SIDE; ++j) {
-                board[id++] = line[j] == '#' ? EMPTY : CANYON;
+            for (fint j = 1; j < WIDTH - 1; ++j) {
+                board[i * WIDTH + j] = line[j - 1] == '#' ? EMPTY : CANYON;
             }
+
+            board[i * WIDTH] = board[i * WIDTH + 1];
+            board[i * WIDTH + WIDTH - 1] = board[i * WIDTH + WIDTH - 2];
         }
+    }
+
+    void swap_seen_ids() {
+        max_id_prev = max_id_curr;
+        max_id_curr = -1;
     }
 
     void read_turn() {
         fint opp = opponent(my_id), id, owner, x, y, damage, reload, cooldown, type_id;
         fint damage_level = 0, range_level = 0, reload_level = 0, list_offset, attackers, hp, max_hp, slow_time, bounty;
-        fint real_x, real_y, dir, neigh, diff;
+        fint real_x, real_y, dir, neigh, diff, spawned_this_round = 0, curr_max = -1;
         fint *dists;
         float fx, fy, curr_speed, max_speed, range;
         string type;
@@ -1310,6 +1395,7 @@ private:
         struct timeval tv;
 
         cin >> cash[my_id];
+        cerr << "after turn: " << turn << endl;
 
         if (turn != 0) {
             gettimeofday(&tv, nullptr);
@@ -1324,6 +1410,8 @@ private:
 
         for (fint i = 0; i < towers_count; ++i) {
             cin >> type >> id >> owner >> y >> x >> damage >> range >> reload >> cooldown;
+
+            ++y;
 
             if (type[0] == 'F') {
                 type_id = FIRE;
@@ -1355,7 +1443,7 @@ private:
             }
 
             towers[i] = code_tower(type_id, i, x, y, owner, damage_level, range_level, reload_level, cooldown);
-            board[x * SIDE + y] = TOWER;
+            board[x * WIDTH + y] = TOWER;
         }
 
         if (towers_count > 1) sort(towers, towers + towers_count);
@@ -1368,10 +1456,14 @@ private:
         for (fint i = 0; i < attackers; ++i) {
             cin >> id >> owner >> fy >> fx >> hp >> max_hp >> curr_speed >> max_speed >> slow_time >> bounty;
 
+            fy += 1.0f;
+
             x = static_cast<fint>(fx);
             y = static_cast<fint>(fy);
             real_x = static_cast<fint>(fx * 10.0);
             real_y = static_cast<fint>(fy * 10.0);
+
+            if ((owner == ONE && real_y >= 180) || (owner == TWO && real_y < 10)) continue; // codingame referee shouldnt even print this
 
             if (owner == ONE) {
                 list = p1_attackers;
@@ -1381,13 +1473,21 @@ private:
                 dists = p2_real_dists;
             }
 
+            if (id > max_id_prev) {
+                ++spawned_this_round;
+            }
+
+            if (id > curr_max) {
+                curr_max = id;
+            }
+
             curr.bounty = bounty;
             curr.x = real_x;
             curr.y = real_y;
             curr.max_hp = max_hp;
             curr.health = hp;
             curr.slowed = slow_time;
-            id = x * SIDE + y;
+            id = x * WIDTH + y;
             curr.pos = id;
             curr.speed = static_cast<fint>(max_speed * 10.0);
 
@@ -1417,23 +1517,23 @@ private:
             } else {
                 switch (dir) {
                 case UP:
-                    if (id < SIDE) {
+                    if (id < WIDTH) {
                         neigh = -1;
                     } else {
-                        neigh = id - SIDE;
+                        neigh = id - WIDTH;
                         diff = 10 - real_x;
                     }
                     break;
                 case DOWN:
-                    if (id >= MAX - SIDE) {
+                    if (id >= MAX - WIDTH) {
                         neigh = -1;
                     } else {
-                        neigh = id + SIDE;
+                        neigh = id + WIDTH;
                         diff = real_x;
                     }
                     break;
                 case RIGHT:
-                    if (id % SIDE == SIDE - 1) {
+                    if (Y_OF[id] == WIDTH - 1) {
                         neigh = -1;
                     } else {
                         neigh = id + 1;
@@ -1441,7 +1541,7 @@ private:
                     }
                     break;
                 case LEFT:
-                    if (id % SIDE == 0) {
+                    if (Y_OF[id] == 0) {
                         neigh = -1;
                     } else {
                         neigh = id - 1;
@@ -1466,9 +1566,31 @@ private:
 
         turn++;
 
-        while (turn >= wave_start && turn >= FIRST_WAVE) {
-            wave_plus();
+        if (curr_max > max_id_curr) {
+            max_id_curr = curr_max;
         }
+        
+        if (curr_max <= max_id_prev) {
+            if (started && --spawning_left == 0) {
+                swap_seen_ids();
+                wave_plus();
+            }
+            return;
+        }
+
+        cerr << "spawning" << endl;
+
+        started = true;
+
+        if (--spawning_left == 0) {
+            swap_seen_ids();
+            wave_plus();
+            return;
+        }
+
+        wave_count -= spawned_this_round / 2;
+
+        update_futures();
     }
 
 public:
@@ -1498,8 +1620,8 @@ fint Game::p1_path_len;
 fint Game::p2_path_len;
 fint Game::p1_paths_count;
 fint Game::p2_paths_count;
-fint Game::p1_bases[SIDE];
-fint Game::p2_bases[SIDE];
+fint Game::p1_bases[2];
+fint Game::p2_bases[2];
 fint Game::my_id;
 fint Game::bases_count;
 fint Game::good_tiles[MAX];
@@ -1518,6 +1640,8 @@ fint Game::p1_pcounts[MAX];
 fint Game::p2_pcounts[MAX];
 fint Game::p1_real_dists[MAX];
 fint Game::p2_real_dists[MAX];
+fint Game::max_id_prev;
+fint Game::max_id_curr;
 
 int main() {
     Game game;
